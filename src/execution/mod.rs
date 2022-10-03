@@ -2,7 +2,7 @@ use std::{fmt::{Write, Display}, collections::HashMap};
 
 use ext_php_rs::{types::Zval, convert::FromZval, flags::DataType};
 
-use crate::loader::ast::{Contents, Template, Content, Expression, Block, BlockType, IterationType};
+use crate::loader::ast::{Contents, Template, Content, Expression, Block, BlockType, IterationType, Stmt, Setter};
 
 use anyhow::{anyhow, Result, Context};
 
@@ -31,7 +31,7 @@ impl Display for InternalValue {
             Self::Str(s) => write!(f, "{}", &s),
             Self::Usize(us) => write!(f, "{}", us),
             Self::Zval(zv) => {
-                // TODO check if this behaivior is ok
+                // TODO check if this behavior is ok
                 write!(f, "{}", zv.str().unwrap_or(""))
             }
         }
@@ -45,6 +45,12 @@ impl Clone for InternalValue {
             Self::Usize(u) => Self::Usize(*u),
             Self::Zval(zv) => Self::Zval(zv.shallow_clone())
         }
+    }
+}
+
+impl Default for InternalValue {
+    fn default() -> Self {
+        Self::Str(String::default())
     }
 }
 
@@ -92,9 +98,17 @@ impl Env {
      }
 
     pub fn set(&mut self, name: &str, val: InternalValue) {
-        let scope = self.stack.last_mut().expect("env is initialised with 1 scope");
-        // TODO set values in parent scope
+        let scope = self.get_scope(name);
         scope.insert(name.to_string(), val);
+    }
+
+    pub fn apply_setter(&mut self, setter: &Setter) {
+        let val = match &setter.value {
+            Expression::Str(str) => InternalValue::Str(str.to_string()),
+            Expression::Var(var_name) => self.get(var_name).unwrap_or_default(),
+            _ => todo!(),
+        };
+        self.set(&setter.target, val)
     }
 
     pub fn get(&self, accessor: &str) -> Result<InternalValue> {
@@ -131,6 +145,19 @@ impl Env {
             }
         }
         None
+    }
+
+    fn get_scope<'env>(&'env mut self, accessor: &'_ str) -> &'env mut Scope {
+        let key = accessor.split_once('.').map(|(k,_)| k).unwrap_or(accessor);
+
+        let mut idx = self.stack.len() - 1;
+        for (i,scope) in self.stack.iter().enumerate().rev() {
+            if scope.contains_key(key) {
+                idx = i;
+                break;
+            }
+        }
+        self.stack.get_mut(idx).expect("env should always contain 1 scope")
     }
 
     fn get_rec<'a>(val: &'a Zval, accessor: &'_ str) -> Option<&'a Zval> {
@@ -173,12 +200,16 @@ impl Renderable for Contents {
 }
 
 impl Renderable for Content {
-    fn render<T: Write>(&self, out: &mut T, env: Env) -> Result<Env> {
+    fn render<T: Write>(&self, out: &mut T,mut  env: Env) -> Result<Env> {
         match self {
             Content::Text(str) => { write!(out, "{}", str)?; Ok(env)},
             Content::Print(expr) => expr.render(out, env),
             Content::Block(block) => block.render(out, env),
-            Content::Statement(_) => Ok(env),
+            Content::Statement(Stmt::Set(setter)) =>{
+                env.apply_setter(setter);
+                Ok(env)
+            },
+            Content::Statement(Setter) => Ok(env),
         }
     }
 }
@@ -187,7 +218,7 @@ impl Renderable for Expression {
     fn render<T: Write>(&self, out: &mut T, env: Env) -> Result<Env> {
         match self {
             Expression::Str(str) => write!(out, "{}", str)?,
-            Expression::Var(var_name) => write!(out, "{}", env.get(var_name)?)?,
+            Expression::Var(var_name) => write!(out, "{}", env.get(var_name).unwrap_or_default())?,
             _ => todo!(),
         }
         Ok(env)

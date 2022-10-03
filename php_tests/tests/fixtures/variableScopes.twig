@@ -1,0 +1,19 @@
+{% set global= 'g' %}
+{% set global_mut = 'gm' %}
+{% set by_expr = 'foo' %}
+Before B0:
+{{ global_mut }}
+{% block B0 %}
+    {% set inner = 'i' %}
+    {% set global_mut = 'gm touched' %}
+    {% set by_expr = global %}
+    B0:
+    {{ global }}
+    {{ inner }}
+    {{ global_mut }}
+{% endblock %}
+After B0:
+{{ global }}
+{{ global_mut }}
+{{ inner }}
+{{ by_expr }}

@@ -1,0 +1,11 @@
+Before B0:
+gm
+    B0:
+    g
+    i
+    gm touched
+After B0:
+g
+gm touched
+
+g

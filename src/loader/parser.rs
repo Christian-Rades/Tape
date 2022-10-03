@@ -1,9 +1,9 @@
-use super::ast::{Template, Module, Extension, Content, Expression, BlockType, Block, Stmt, IterationType, Loop};
+use super::ast::{Template, Module, Extension, Content, Expression, BlockType, Block, Stmt, IterationType, Loop, Setter};
 
 use std::collections::HashMap;
 
 use anyhow::{anyhow, Result};
-use nom::{IResult, sequence::{tuple, delimited}, character::complete::{multispace0, multispace1, line_ending}, branch::alt, bytes::{complete::{take_while, tag, take_till, take_while1}, streaming::take_until}, multi::many_till, combinator::{eof, opt}};
+use nom::{IResult, sequence::{tuple, delimited}, character::{complete::{multispace0, multispace1, line_ending}, streaming::space0}, branch::alt, bytes::{complete::{take_while, tag, take_till, take_while1}, streaming::take_until}, multi::many_till, combinator::{eof, opt}};
 
 pub fn parse(name: String, input: &str) -> Result<Module> {
     if let Ok((rest, parent)) = parse_extends(input) {
@@ -23,7 +23,7 @@ fn parse_extends(i: &str) -> IResult<&str, String> {
 }
 
 fn parse_block_tag_l(i: &str) -> IResult<&str, ()> {
-    let (rest, _) = tuple((tag("{%"), multispace1))(i)?;
+    let (rest, _) = tuple((space0, tag("{%"), multispace1))(i)?;
     Ok((rest, ()))
 }
 
@@ -84,7 +84,7 @@ fn parse_expr(i: &str) -> IResult<&str, Expression> {
     if let Ok((rest, plain_str)) = parse_quoted(i) {
         return Ok((rest, Expression::Str(plain_str.to_string())))
     }
-    take_while(|c| c != '}')(i).map(|(rest, accesor)| (rest, Expression::Var(accesor.trim().to_string())))
+    take_while(|c| c != ' ' && c != '}' && c != '&')(i).map(|(rest, accesor)| (rest, Expression::Var(accesor.trim().to_string())))
 }
 
 fn parse_statement(i: &str) -> IResult<&str, Content> {
@@ -93,8 +93,8 @@ fn parse_statement(i: &str) -> IResult<&str, Content> {
 }
 
 fn parse_set_statement(i: &str) -> IResult<&str, Stmt> {
-    let (rest, _) = tag("set")(i)?;
-    todo!()
+    let (rest, (.., target, _, _, expr)) = tuple((tag("set"), multispace1, take_till(|c| c == '='), nom::character::complete::char('='), multispace0, parse_expr))(i)?;
+    Ok((rest, Stmt::Set(Setter{target: target.trim().to_string(), value: expr})))
 }
 
 fn parse_include_statement(i: &str) -> IResult<&str, Stmt> {
@@ -142,6 +142,8 @@ fn parse_key_value(i: &str) -> IResult<&str, IterationType> {
 
 #[cfg(test)]
 mod tests {
+    use crate::loader::ast::Setter;
+
     use super::*;
     use pretty_assertions::assert_eq;
 
@@ -173,6 +175,29 @@ mod tests {
        assert_eq!(parse_print(plain_str), Ok(("", Content::Print(Expression::Str("foo".to_string())))));
        let var_acces = r#"{{ foo.baz_foo }}"#;
        assert_eq!(parse_print(var_acces), Ok(("", Content::Print(Expression::Var("foo.baz_foo".to_string())))));
+   }
+
+   #[test]
+   fn test_parse_set() {
+       let set = r#"set var = 'bar'"#;
+       assert_eq!(parse_set_statement(set),
+       Ok(("", 
+           Stmt::Set(
+               Setter{
+                   target: "var".to_string(), 
+                   value: Expression::Str("bar".to_string())
+               })))
+       );
+
+       let set_var = r#"set var = bar"#;
+       assert_eq!(parse_set_statement(set_var),
+       Ok(("", 
+           Stmt::Set(
+               Setter{
+                   target: "var".to_string(), 
+                   value: Expression::Var("bar".to_string())
+               })))
+       )
    }
 
    #[test]

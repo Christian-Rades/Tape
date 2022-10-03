@@ -62,6 +62,12 @@ pub enum IterationType {
 
 #[derive(Debug, PartialEq)]
 pub enum Stmt {
-    Set(),
+    Set(Setter),
     Include(String),
+}
+
+#[derive(Debug, PartialEq)]
+pub struct Setter {
+    pub target: String,
+    pub value: Expression
 }
