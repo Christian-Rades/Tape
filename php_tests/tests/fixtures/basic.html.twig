@@ -1,0 +1,14 @@
+{% block base_doctype %}
+<!DOCTYPE html>
+{% endblock %}
+
+{% for test in coll %}
+    pre
+{{ test }}
+    post
+{% endfor %}
+
+include:
+{% include 'foo.html.twig' %}
+
+<h1>HELLO {{ foo.name }}</h1>

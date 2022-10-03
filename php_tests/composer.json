@@ -1,0 +1,12 @@
+{
+    "name": "tape/php_tests",
+    "type": "project",
+    "require": {
+        "phpunit/phpunit": "^9.5"
+    },
+    "autoload": {
+        "psr-4": {
+            "Test\\": "tests/"
+        }
+    }
+}
