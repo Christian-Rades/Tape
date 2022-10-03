@@ -71,3 +71,26 @@ pub struct Setter {
     pub target: String,
     pub value: Expression
 }
+
+impl Template {
+    pub fn replace_includes(mut self, replace: &mut dyn FnMut(Content)-> Content) -> Template {
+        self.content = self.content.into_iter().map(|c| replace_includes(c, replace)).collect();
+        self
+    }
+    
+    pub fn into_block(self) -> Content {
+        let Self { name, content } = self;
+        Content::Block(Box::new(Block { typ: BlockType::BlockName(name), contents: content}))
+    }
+}
+
+fn replace_includes(content: Content, replace: &mut dyn FnMut(Content) -> Content) -> Content {
+    match content {
+        Content::Statement(Stmt::Include(_)) => replace(content),
+        Content::Block(mut block) => {
+            block.contents = block.contents.into_iter().map(|c| replace_includes(c, replace)).collect();
+            Content::Block(block)
+        }
+        _ => content
+    }
+}
