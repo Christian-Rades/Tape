@@ -1,20 +1,43 @@
-use std::{fmt::{Write, Display}, collections::HashMap};
+use std::{fmt::{Write, Display}, collections::HashMap, rc::Rc};
 
 use ext_php_rs::{types::Zval, convert::FromZval, flags::DataType};
 
-use crate::loader::ast::{Contents, Template, Content, Expression, Block, BlockType, IterationType, Stmt, Setter};
+use crate::loader::{ast::{Contents, Template, Content, Expression, Block, BlockType, IterationType, Stmt, Setter}, Loader, Module, Extension};
 
 use anyhow::{anyhow, Result, Context};
 
-pub fn render(tpl: &Template, env: Env) -> Result<String> {
-    let mut out_buf = String::default();
-    tpl.render(&mut out_buf, env)?;
-    Ok(out_buf)
+pub fn render(mut tpl: Module, mut env: Env) -> Result<String> {
+
+    let mut block_extensions: HashMap<String, Box<Block>> = HashMap::default();
+
+    while let Module::Extension(Extension{parent, blocks, ..}) = tpl {
+        for (name, block) in blocks.into_iter() {
+            match block_extensions.get_mut(&name) {
+                None => {block_extensions.insert(name, block);},
+                Some(child_block) =>  {
+                    child_block.set_parents(block)
+                }
+            }
+        }
+        tpl = env.loader.load(parent)?;
+    }
+
+    match tpl {
+        Module::Template(mut base) => {
+            let mut out_buf = String::default();
+            base.apply_extensions(block_extensions);
+            base.render(&mut out_buf, env)?;
+            Ok(out_buf)
+        },
+        _ => unreachable!()
+    }
+ 
 }
 
 pub struct Env {
     globals: Zval,
-    stack: Vec<Scope>
+    stack: Vec<Scope>,
+    loader: Loader
 }
 
 type Scope = HashMap<String, InternalValue>;
@@ -84,8 +107,8 @@ trait Renderable {
 }
 
 impl Env {
-    pub fn new(globals: Zval) -> Self {
-        Self { globals, stack: vec![Scope::default()]}
+    pub fn new(globals: Zval, loader: Loader) -> Self {
+        Self { globals, stack: vec![Scope::default()], loader}
     }
 
     pub fn enter_new_scope(mut self) -> Self {

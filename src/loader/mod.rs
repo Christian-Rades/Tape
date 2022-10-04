@@ -1,17 +1,17 @@
 pub mod ast;
 pub mod parser;
-use std::{path::PathBuf, collections::HashMap, fs::File, io::Read, rc::Rc};
+use std::{path::PathBuf, collections::HashMap, fs::File, io::Read};
 
 use self::ast::Content;
 pub use self::{ast::{Module, Template, Extension}, parser::parse};
 
-use anyhow::{anyhow, Result};
+use anyhow::Result;
 
 
 
 pub struct Loader {
     root_dir: PathBuf,
-    modules: HashMap<String, Rc<Template>>
+    modules: HashMap<String, Module>
 }
 
 impl Loader {
@@ -19,17 +19,20 @@ impl Loader {
         Self { root_dir: root, modules: HashMap::default()}
     }
 
-    pub fn load<T: AsRef<str>>(&mut self, template: T) -> Result<Rc<Template>> {
+    pub fn load<T: AsRef<str>>(&mut self, template: T) -> Result<Module> {
         match self.modules.get(template.as_ref()) {
             Some(t) => Ok(t.to_owned()),
             None => {
                 match self.read_file(template.as_ref())? {
                     Module::Template(mut tpl) => {
                         tpl = self.load_includes(tpl)?;
-                        self.modules.insert(template.as_ref().into(), Rc::new(tpl));
-                        Ok(self.modules[template.as_ref()].to_owned())
+                        self.modules.insert(template.as_ref().into(), Module::Template(tpl));
+                        Ok(self.modules[template.as_ref()].clone())
                     }
-                    Module::Extension(_) => todo!()
+                    Module::Extension(ext) => {
+                        self.modules.insert(template.as_ref().into(), Module::Extension(ext));
+                        Ok(self.modules[template.as_ref()].clone())
+                    }
                 }
             }
         }
@@ -59,9 +62,5 @@ impl Loader {
         });
 
         Ok(template.replace_includes(&mut replace_fn))
-    }
-
-    fn resolve_to_template(&mut self, module: &Extension) -> Result<&Template> {
-        todo!()
     }
 }

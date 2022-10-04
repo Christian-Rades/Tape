@@ -1,4 +1,4 @@
-use super::ast::{Template, Module, Extension, Content, Expression, BlockType, Block, Stmt, IterationType, Loop, Setter};
+use super::ast::{Template, Module, Extension, Content, Expression, BlockType, Block, Stmt, IterationType, Loop, Setter, get_blocks};
 
 use std::collections::HashMap;
 
@@ -7,8 +7,13 @@ use nom::{IResult, sequence::{tuple, delimited}, character::{complete::{multispa
 
 pub fn parse(name: String, input: &str) -> Result<Module> {
     if let Ok((rest, parent)) = parse_extends(input) {
-        let mut ext = Extension {name, parent, blocks: HashMap::default()};
-        Ok(Module::Extension(ext))
+        match parse_contents(rest) {
+            Ok((_, content)) => {
+                let ext = Extension {name, parent, blocks: get_blocks(content, HashMap::default())};
+                Ok(Module::Extension(ext))
+            }, 
+            Err(err) => Err(anyhow!("error parsing {}: {}", name, err))
+        }
     } else {
         match parse_contents(input) {
             Ok((_, content)) => Ok(Module::Template(Template {name, content})),
