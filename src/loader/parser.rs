@@ -1,9 +1,9 @@
-use super::ast::{Template, Module, Extension, Content, Expression, BlockType, Block, Stmt, IterationType, Loop, Setter, get_blocks};
+use super::ast::{Template, Module, Extension, Content, Expression, BlockType, Block, Stmt, IterationType, Loop, Setter, get_blocks, KeyValuePair};
 
 use std::collections::HashMap;
 
 use anyhow::{anyhow, Result};
-use nom::{IResult, sequence::{tuple, delimited}, character::{complete::{multispace0, multispace1, line_ending}, streaming::space0}, branch::alt, bytes::{complete::{take_while, tag, take_till, take_while1}, streaming::take_until}, multi::many_till, combinator::{eof, opt}};
+use nom::{IResult, sequence::{tuple, delimited, separated_pair}, character::complete::{multispace0, multispace1, line_ending, digit1, space0, one_of}, branch::alt, bytes::{complete::{take_while, tag, take_till, take_while1}, streaming::take_until}, multi::{many_till, separated_list0}, combinator::{eof, opt, map_res, not}, number::complete::float};
 
 pub fn parse(name: String, input: &str) -> Result<Module> {
     if let Ok((rest, parent)) = parse_extends(input) {
@@ -86,10 +86,59 @@ fn parse_expr(i: &str) -> IResult<&str, Expression> {
     if let Ok((rest, _)) = tag::<&str, &str, nom::error::Error<&str>>("parent()")(i) {
         return Ok((rest, Expression::Parent()))
     }
-    if let Ok((rest, plain_str)) = parse_quoted(i) {
-        return Ok((rest, Expression::Str(plain_str.to_string())))
-    }
-    take_while(|c| c != ' ' && c != '}' && c != '&')(i).map(|(rest, accesor)| (rest, Expression::Var(accesor.trim().to_string())))
+    let (rest, (_, expr)) = tuple((multispace0, alt((parse_hash_map, parse_parens, parse_array, parse_number, parse_float, parse_string_literal, parse_var))))(i)?;
+    Ok((rest, expr))
+}
+
+fn parse_string_literal(i: &str) -> IResult<&str, Expression> {
+    let (rest, plain_str) = parse_quoted(i)?;
+    Ok((rest, Expression::Str(plain_str.to_string())))
+}
+
+fn parse_var(i: &str) -> IResult<&str, Expression> {
+    let is_identifier = |c| -> bool {
+        ('a'..='z').contains(&c) || ('A'..='Z').contains(&c) || c == '_' || (0x7f as char <= c && c <= 0xff as char)
+    };
+    let (rest, (part1, part2)) = tuple((take_while1(is_identifier), take_while(|c| is_identifier(c) || ('0'..='9').contains(&c) || c == '.')))(i)?;
+    let mut accessor = part1.to_string();
+    accessor.push_str(part2.trim());
+    Ok((rest, Expression::Var(accessor)))
+}
+
+fn parse_float(i: &str) -> IResult<&str, Expression> {
+    let (rest, f) = float(i)?;
+    Ok((rest, Expression::Float(f)))
+}
+
+fn parse_number(i: &str) -> IResult<&str, Expression> {
+    //TODO add negative numbers
+    let (rest, number) = map_res(tuple((digit1, not(one_of("e.")))), |(number,..)| str::parse(number))(i)?;
+    Ok((rest, Expression::Number(number)))
+}
+
+fn parse_parens(i: &str) -> IResult<&str, Expression> {
+    let (rest, (.., (child_exprs, ..))) = tuple((nom::character::complete::char('('), many_till(parse_expr, tuple((multispace0, nom::character::complete::char(')'))))))(i)?;
+    Ok((rest, Expression::Parens(child_exprs)))
+}
+
+fn parse_array(i: &str) -> IResult<&str, Expression> {
+    let (rest, elems) = delimited(tag("["), separated_list0(tag(","), parse_expr), tuple((multispace0,tag("]"))))(i)?;
+    Ok((rest, Expression::Array(elems)))
+}
+
+fn parse_hash_map(i: &str) -> IResult<&str, Expression> {
+    let (rest, kv_pairs) = delimited(tuple((tag("{"), multispace0)), separated_list0(tuple((multispace0,tag(","), multispace0)), parse_key_value_pair), tuple((multispace0, tag("}"))))(i)?;
+    Ok((rest, Expression::HashMap(kv_pairs)))
+}
+
+fn parse_key_value_pair(i: &str) -> IResult<&str, KeyValuePair> {
+    let (rest, (key, value)) = separated_pair(alt((parse_parens, parse_string_literal, parse_var)), tuple((multispace0,tag(":"),multispace0)), parse_expr)(i)?;
+    //hash keys are allowed to be unqouted
+    let key = match key {
+        Expression::Var(v) => Expression::Str(v),
+        _ => key
+    };
+    Ok((rest, KeyValuePair{key, value}))
 }
 
 fn parse_statement(i: &str) -> IResult<&str, Content> {
@@ -216,6 +265,7 @@ pre
 {{ test }}
 post
 {% endfor %}
+{% set v = { 'bar': [1,1.5], (v1): foo } %}
 
 include:
 {% include 'foo.html.twig' %}
@@ -243,6 +293,21 @@ include:
                     Content::Print(Expression::Var("test".to_string())),
                     Content::Text("\npost\n".to_string())
                 ]
+            })),
+            Content::Statement(Stmt::Set(Setter {
+                target: "v".to_string(),
+                value: Expression::HashMap(vec![
+                                           KeyValuePair {
+                                               key: Expression::Str("bar".to_string()), 
+                                               value: Expression::Array(vec![
+                                                                        Expression::Number(1),
+                                                                        Expression::Float(1.5)
+                                               ])},
+                                            KeyValuePair {
+                                                key: Expression::Parens(vec![Expression::Var("v1".to_string())]),
+                                                value: Expression::Var("foo".to_string())
+                                            }
+                ])
             })),
             Content::Text("\ninclude:\n".to_string()),
             Content::Statement(Stmt::Include("foo.html.twig".to_string())),

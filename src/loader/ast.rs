@@ -33,7 +33,18 @@ pub enum Content {
 pub enum Expression {
     Str(String),
     Var(String),
+    Number(i64),
+    Float(f32),
+    Array(Vec<Expression>),
+    HashMap(Vec<KeyValuePair>),
+    Parens(Vec<Expression>),
     Parent()
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub struct KeyValuePair {
+    pub key: Expression,
+    pub value: Expression,
 }
 
 #[derive(Debug, PartialEq, Clone)]
