@@ -1,9 +1,9 @@
-use super::ast::{Template, Module, Extension, Content, Expression, BlockType, Block, Stmt, IterationType, Loop, Setter, get_blocks, KeyValuePair};
+use super::{ast::{Template, Module, Extension, Content, ExpressionAtom, BlockType, Block, Stmt, IterationType, Loop, Setter, get_blocks, KeyValuePair, ExpressionToken}, expression_parser::parse_to_expression};
 
 use std::collections::HashMap;
 
 use anyhow::{anyhow, Result};
-use nom::{IResult, sequence::{tuple, delimited, separated_pair}, character::complete::{multispace0, multispace1, line_ending, digit1, space0, one_of}, branch::alt, bytes::{complete::{take_while, tag, take_till, take_while1}, streaming::take_until}, multi::{many_till, separated_list0}, combinator::{eof, opt, map_res, not}, number::complete::float};
+use nom::{IResult, sequence::{tuple, delimited, separated_pair}, character::complete::{multispace0, multispace1, line_ending, digit1, space0, one_of}, branch::alt, bytes::{complete::{take_while, tag, take_till, take_while1}, streaming::take_until}, multi::{many_till, separated_list0, separated_list1}, combinator::{eof, opt, map_res, not}, number::complete::float};
 
 pub fn parse(name: String, input: &str) -> Result<Module> {
     if let Ok((rest, parent)) = parse_extends(input) {
@@ -66,8 +66,8 @@ fn parse_text(i: &str) -> IResult<&str, Content> {
 }
 
 fn parse_print(i: &str) -> IResult<&str, Content> {
-    let (rest, expr) = delimited(parse_print_tag_l, parse_expr, parse_print_tag_r)(i)?;
-    Ok((rest, Content::Print(expr)))
+    let (rest, exprs) = delimited(parse_print_tag_l, parse_exprs, parse_print_tag_r)(i)?;
+    Ok((rest, Content::Print(parse_to_expression(exprs))))
 }
 
 fn parse_print_tag_l(i: &str) -> IResult<&str, ()> {
@@ -82,62 +82,70 @@ fn parse_print_tag_r(i: &str) -> IResult<&str, ()> {
 }
 
 
-fn parse_expr(i: &str) -> IResult<&str, Expression> {
-    if let Ok((rest, _)) = tag::<&str, &str, nom::error::Error<&str>>("parent()")(i) {
-        return Ok((rest, Expression::Parent()))
-    }
-    let (rest, (_, expr)) = tuple((multispace0, alt((parse_hash_map, parse_parens, parse_array, parse_number, parse_float, parse_string_literal, parse_var))))(i)?;
-    Ok((rest, expr))
+fn parse_exprs(i: &str) -> IResult<&str, Vec<ExpressionToken>> {
+    let (rest, exprs) = separated_list1(multispace1, parse_expr)(i)?;
+    Ok((rest, exprs))
 }
 
-fn parse_string_literal(i: &str) -> IResult<&str, Expression> {
+fn parse_expr(i: &str) -> IResult<&str, ExpressionToken> {
+    dbg!(alt((parse_parent_call, parse_hash_map, parse_parens, parse_array, parse_number, parse_float, parse_string_literal, parse_var))(i))
+}
+
+fn parse_parent_call(i: &str) -> IResult<&str, ExpressionToken> {
+    let (rest, _) = tag::<&str, &str, nom::error::Error<&str>>("parent()")(i)?;
+    Ok((rest, ExpressionToken::Atom(ExpressionAtom::Parent())))
+}
+
+fn parse_string_literal(i: &str) -> IResult<&str, ExpressionToken> {
     let (rest, plain_str) = parse_quoted(i)?;
-    Ok((rest, Expression::Str(plain_str.to_string())))
+    Ok((rest, ExpressionToken::Atom(ExpressionAtom::Str(plain_str.to_string()))))
 }
 
-fn parse_var(i: &str) -> IResult<&str, Expression> {
+fn parse_var(i: &str) -> IResult<&str, ExpressionToken> {
     let is_identifier = |c| -> bool {
         ('a'..='z').contains(&c) || ('A'..='Z').contains(&c) || c == '_' || (0x7f as char <= c && c <= 0xff as char)
     };
     let (rest, (part1, part2)) = tuple((take_while1(is_identifier), take_while(|c| is_identifier(c) || ('0'..='9').contains(&c) || c == '.')))(i)?;
     let mut accessor = part1.to_string();
     accessor.push_str(part2.trim());
-    Ok((rest, Expression::Var(accessor)))
+    Ok((rest, ExpressionToken::Atom(ExpressionAtom::Var(accessor))))
 }
 
-fn parse_float(i: &str) -> IResult<&str, Expression> {
+fn parse_float(i: &str) -> IResult<&str, ExpressionToken> {
     let (rest, f) = float(i)?;
-    Ok((rest, Expression::Float(f)))
+    Ok((rest, ExpressionToken::Atom(ExpressionAtom::Float(f))))
 }
 
-fn parse_number(i: &str) -> IResult<&str, Expression> {
+fn parse_number(i: &str) -> IResult<&str, ExpressionToken> {
     //TODO add negative numbers
     let (rest, number) = map_res(tuple((digit1, not(one_of("e.")))), |(number,..)| str::parse(number))(i)?;
-    Ok((rest, Expression::Number(number)))
+    Ok((rest, ExpressionToken::Atom(ExpressionAtom::Number(number))))
 }
 
-fn parse_parens(i: &str) -> IResult<&str, Expression> {
+fn parse_parens(i: &str) -> IResult<&str, ExpressionToken> {
     let (rest, (.., (child_exprs, ..))) = tuple((nom::character::complete::char('('), many_till(parse_expr, tuple((multispace0, nom::character::complete::char(')'))))))(i)?;
-    Ok((rest, Expression::Parens(child_exprs)))
+    Ok((rest, ExpressionToken::Atom(ExpressionAtom::Parens(child_exprs))))
 }
 
-fn parse_array(i: &str) -> IResult<&str, Expression> {
+fn parse_array(i: &str) -> IResult<&str, ExpressionToken> {
     let (rest, elems) = delimited(tag("["), separated_list0(tag(","), parse_expr), tuple((multispace0,tag("]"))))(i)?;
-    Ok((rest, Expression::Array(elems)))
+    Ok((rest, ExpressionToken::Atom(ExpressionAtom::Array(elems))))
 }
 
-fn parse_hash_map(i: &str) -> IResult<&str, Expression> {
+fn parse_hash_map(i: &str) -> IResult<&str, ExpressionToken> {
     let (rest, kv_pairs) = delimited(tuple((tag("{"), multispace0)), separated_list0(tuple((multispace0,tag(","), multispace0)), parse_key_value_pair), tuple((multispace0, tag("}"))))(i)?;
-    Ok((rest, Expression::HashMap(kv_pairs)))
+    Ok((rest, ExpressionToken::Atom(ExpressionAtom::HashMap(kv_pairs))))
 }
 
 fn parse_key_value_pair(i: &str) -> IResult<&str, KeyValuePair> {
-    let (rest, (key, value)) = separated_pair(alt((parse_parens, parse_string_literal, parse_var)), tuple((multispace0,tag(":"),multispace0)), parse_expr)(i)?;
+    let (rest, (key, value)) = separated_pair(alt((parse_parens, parse_string_literal, parse_var)), tuple((multispace0,tag(":"),multispace0)), parse_exprs)(i)?;
     //hash keys are allowed to be unqouted
     let key = match key {
-        Expression::Var(v) => Expression::Str(v),
-        _ => key
+        ExpressionToken::Atom(ExpressionAtom::Var(v)) => ExpressionAtom::Str(v),
+        ExpressionToken::Atom(a) => a,
+        _ => todo!()
     };
+    let value = parse_to_expression(value);
     Ok((rest, KeyValuePair{key, value}))
 }
 
@@ -147,8 +155,8 @@ fn parse_statement(i: &str) -> IResult<&str, Content> {
 }
 
 fn parse_set_statement(i: &str) -> IResult<&str, Stmt> {
-    let (rest, (.., target, _, _, expr)) = tuple((tag("set"), multispace1, take_till(|c| c == '='), nom::character::complete::char('='), multispace0, parse_expr))(i)?;
-    Ok((rest, Stmt::Set(Setter{target: target.trim().to_string(), value: expr})))
+    let (rest, (.., target, _, _, expr)) = tuple((tag("set"), multispace1, take_till(|c| c == '='), nom::character::complete::char('='), multispace0, parse_exprs))(i)?;
+    Ok((rest, Stmt::Set(Setter{target: target.trim().to_string(), value: parse_to_expression(expr)})))
 }
 
 fn parse_include_statement(i: &str) -> IResult<&str, Stmt> {
@@ -196,7 +204,7 @@ fn parse_key_value(i: &str) -> IResult<&str, IterationType> {
 
 #[cfg(test)]
 mod tests {
-    use crate::loader::ast::Setter;
+    use crate::loader::ast::{Setter, Expression};
 
     use super::*;
     use pretty_assertions::assert_eq;
@@ -224,11 +232,11 @@ mod tests {
    #[test]
    fn test_parse_print_block() {
        let parent = r#"{{ parent() }}"#;
-       assert_eq!(parse_print(parent), Ok(("", Content::Print(Expression::Parent()))));
+       assert_eq!(parse_print(parent), Ok(("", Content::Print(Expression::Atom(ExpressionAtom::Parent())))));
        let plain_str = r#"{{ 'foo' }}"#;
-       assert_eq!(parse_print(plain_str), Ok(("", Content::Print(Expression::Str("foo".to_string())))));
+       assert_eq!(parse_print(plain_str), Ok(("", Content::Print(Expression::Atom(ExpressionAtom::Str("foo".to_string()))))));
        let var_acces = r#"{{ foo.baz_foo }}"#;
-       assert_eq!(parse_print(var_acces), Ok(("", Content::Print(Expression::Var("foo.baz_foo".to_string())))));
+       assert_eq!(parse_print(var_acces), Ok(("", Content::Print(Expression::Atom(ExpressionAtom::Var("foo.baz_foo".to_string()))))));
    }
 
    #[test]
@@ -239,7 +247,7 @@ mod tests {
            Stmt::Set(
                Setter{
                    target: "var".to_string(), 
-                   value: Expression::Str("bar".to_string())
+                   value: Expression::Atom(ExpressionAtom::Str("bar".to_string()))
                })))
        );
 
@@ -249,11 +257,11 @@ mod tests {
            Stmt::Set(
                Setter{
                    target: "var".to_string(), 
-                   value: Expression::Var("bar".to_string())
+                   value: Expression::Atom(ExpressionAtom::Var("bar".to_string()))
                })))
        )
    }
-
+// {% set v = { 'bar': [1,1.5], (v1): foo } %}
    #[test]
    fn test_parse_general() {
        let test_tpl = r#"{% block base_doctype %}
@@ -265,7 +273,6 @@ pre
 {{ test }}
 post
 {% endfor %}
-{% set v = { 'bar': [1,1.5], (v1): foo } %}
 
 include:
 {% include 'foo.html.twig' %}
@@ -290,29 +297,14 @@ include:
                 }),
                 contents: vec![
                     Content::Text("pre\n".to_string()),
-                    Content::Print(Expression::Var("test".to_string())),
+                    Content::Print(Expression::Atom(ExpressionAtom::Var("test".to_string()))),
                     Content::Text("\npost\n".to_string())
                 ]
-            })),
-            Content::Statement(Stmt::Set(Setter {
-                target: "v".to_string(),
-                value: Expression::HashMap(vec![
-                                           KeyValuePair {
-                                               key: Expression::Str("bar".to_string()), 
-                                               value: Expression::Array(vec![
-                                                                        Expression::Number(1),
-                                                                        Expression::Float(1.5)
-                                               ])},
-                                            KeyValuePair {
-                                                key: Expression::Parens(vec![Expression::Var("v1".to_string())]),
-                                                value: Expression::Var("foo".to_string())
-                                            }
-                ])
             })),
             Content::Text("\ninclude:\n".to_string()),
             Content::Statement(Stmt::Include("foo.html.twig".to_string())),
             Content::Text("\n<h1>HELLO ".to_string()),
-            Content::Print(Expression::Var("foo.name".to_string())),
+            Content::Print(Expression::Atom(ExpressionAtom::Var("foo.name".to_string()))),
             Content::Text("</h1>\n".to_string())
         ]
     }))

@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use ext_php_rs::{types::Zval, convert::FromZval};
 
-use crate::loader::{ast::{Setter, Expression}, Loader, Module};
+use crate::loader::{ast::{Setter, ExpressionAtom}, Loader, Module};
 
 use anyhow::{anyhow, Result};
 
@@ -41,8 +41,8 @@ impl Env {
 
     pub fn apply_setter(&mut self, setter: &Setter) {
         let val = match &setter.value {
-            Expression::Str(str) => TaggedValue::Str(str.to_string()),
-            Expression::Var(var_name) => self.get(var_name).unwrap_or_default(),
+            //ExpressionAtom::Str(str) => TaggedValue::Str(str.to_string()),
+            //ExpressionAtom::Var(var_name) => self.get(var_name).unwrap_or_default(),
             _ => todo!(),
         };
         self.set(&setter.target, val)

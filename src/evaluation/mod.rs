@@ -4,7 +4,7 @@ use std::{fmt::Write, collections::HashMap};
 
 use ext_php_rs::convert::FromZval;
 
-use crate::loader::{ast::{Contents, Template, Content, Expression, Block, BlockType, IterationType, Stmt}, Module, Extension};
+use crate::loader::{ast::{Contents, Template, Content, ExpressionAtom, Block, BlockType, IterationType, Stmt, Expression}, Module, Extension};
 
 use anyhow::{anyhow, Result, Context};
 
@@ -78,14 +78,23 @@ impl Renderable for Content {
     }
 }
 
-impl Renderable for Expression {
+impl Renderable for ExpressionAtom {
     fn render<T: Write>(&self, out: &mut T, env: Env) -> Result<Env> {
         match self {
-            Expression::Str(str) => write!(out, "{}", str)?,
-            Expression::Var(var_name) => write!(out, "{}", env.get(var_name).unwrap_or_default())?,
+            ExpressionAtom::Str(str) => write!(out, "{}", str)?,
+            ExpressionAtom::Var(var_name) => write!(out, "{}", env.get(var_name).unwrap_or_default())?,
             _ => todo!(),
         }
         Ok(env)
+    }
+}
+
+impl Renderable for Expression {
+    fn render<T: Write>(&self, out: &mut T, env: Env) -> Result<Env> {
+        match self {
+            Self::Atom(a) => a.render(out, env),
+            _ => todo!()
+        }
     }
 }
 

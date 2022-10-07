@@ -31,19 +31,52 @@ pub enum Content {
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum Expression {
+    Atom(ExpressionAtom),
+    Term(Term)
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub enum ExpressionAtom {
     Str(String),
     Var(String),
     Number(i64),
     Float(f32),
-    Array(Vec<Expression>),
+    Array(Vec<ExpressionToken>),
     HashMap(Vec<KeyValuePair>),
-    Parens(Vec<Expression>),
+    Parens(Vec<ExpressionToken>),
     Parent()
 }
 
 #[derive(Debug, PartialEq, Clone)]
+pub enum ExpressionToken {
+    Atom(ExpressionAtom),
+    Op(OperatorToken)
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub struct Term {
+    pub op: OperatorToken,
+    pub params: Vec<Expression>
+}
+
+#[derive(Debug, PartialEq, Clone, Copy)]
+pub enum OperatorToken {
+    Ternary,
+    BAnd, BOr, BXor,
+    Or, And,
+    Eq, Neq, Starship,
+    Lt, Gt, Gte, Lte,
+    In, Matches, StartsWith,
+    EndWith, Range, Add, Sub,
+    StrConcat, Mul, Div, Divi,
+    Modulo, Is, Exp, NullCoal,
+    Filter, ArrayIndex, Get
+
+}
+
+#[derive(Debug, PartialEq, Clone)]
 pub struct KeyValuePair {
-    pub key: Expression,
+    pub key: ExpressionAtom,
     pub value: Expression,
 }
 
@@ -80,7 +113,7 @@ pub enum Stmt {
 #[derive(Debug, PartialEq, Clone)]
 pub struct Setter {
     pub target: String,
-    pub value: Expression
+    pub value: Expression 
 }
 
 impl Template {
@@ -133,7 +166,7 @@ impl Block {
     pub fn set_parents(&mut self, parent: Box<Block>) {
         for elem in self.contents.iter_mut() {
             match elem {
-                Content::Print(Expression::Parent()) => *elem = Content::Block(parent.clone()),
+                Content::Print(Expression::Atom(ExpressionAtom::Parent())) => *elem = Content::Block(parent.clone()),
                 Content::Block(block) => block.set_parents(parent.clone()),
                 _ => ()
             }
