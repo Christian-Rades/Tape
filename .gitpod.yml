@@ -1,0 +1,15 @@
+tasks:
+  - init: cargo build && composer install -d php_tests
+    command: make
+
+vscode:
+  extensions:
+    - ms-vscode.makefile-tools
+    - matklad.rust-analyzer
+
+github:
+  prebuilds:
+    master: true
+    pullRequests: true
+    pullRequestsFromForks: true
+    addBadge: true
