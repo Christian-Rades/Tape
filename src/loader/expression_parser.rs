@@ -13,6 +13,7 @@ fn parse_rec(tokens: &mut VecDeque<ExpressionToken>, min_bp: u8) -> Expression {
     let lhs = tokens.pop_front().unwrap_or_else(|| todo!("empty expr"));
 
     let mut lhs = match lhs {
+        ExpressionToken::Atom(ExpressionAtom::Parens(par_tokens)) => parse_to_expression(par_tokens),
         ExpressionToken::Atom(a) => Expression::Atom(a),
         _ => todo!("lhs not an atom"),
     };
@@ -120,6 +121,34 @@ mod tests {
                     params: vec![
                         Expression::Atom(ExpressionAtom::Number(2)),
                         Expression::Atom(ExpressionAtom::Number(3)),
+                    ]
+                })
+            ]
+        }))
+    }
+
+    #[test]
+    fn test_parenthesis() {
+        let tokens = vec![
+            t_atom(ExpressionAtom::Number(1)),
+            t_op(OperatorToken::Mul),
+            t_atom(ExpressionAtom::Parens(vec![
+                t_atom(ExpressionAtom::Number(2)),
+                t_op(OperatorToken::Add),
+                t_atom(ExpressionAtom::Number(3))
+            ])
+            )
+        ];
+
+        assert_eq!(parse_to_expression(tokens), Expression::Term(Term {
+            op: OperatorToken::Mul,
+            params: vec![
+                Expression::Atom(ExpressionAtom::Number(1)),
+                Expression::Term(Term {
+                    op: OperatorToken::Add,
+                    params: vec![
+                        Expression::Atom(ExpressionAtom::Number(2)),
+                        Expression::Atom(ExpressionAtom::Number(3))
                     ]
                 })
             ]
