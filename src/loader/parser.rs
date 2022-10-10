@@ -88,7 +88,7 @@ fn parse_exprs(i: &str) -> IResult<&str, Vec<ExpressionToken>> {
 }
 
 fn parse_expr(i: &str) -> IResult<&str, ExpressionToken> {
-    dbg!(alt((parse_parent_call, parse_hash_map, parse_parens, parse_array, parse_number, parse_float, parse_string_literal, parse_var))(i))
+    alt((parse_parent_call, parse_hash_map, parse_parens, parse_array, parse_number, parse_float, parse_string_literal, parse_var))(i)
 }
 
 fn parse_parent_call(i: &str) -> IResult<&str, ExpressionToken> {

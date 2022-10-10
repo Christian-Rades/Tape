@@ -67,7 +67,7 @@ pub enum OperatorToken {
     Eq, Neq, Starship,
     Lt, Gt, Gte, Lte,
     In, Matches, StartsWith,
-    EndWith, Range, Add, Sub,
+    EndsWith, Range, Add, Sub,
     StrConcat, Mul, Div, Divi,
     Modulo, Is, Exp, NullCoal,
     Filter, ArrayIndex, Get
@@ -114,6 +114,83 @@ pub enum Stmt {
 pub struct Setter {
     pub target: String,
     pub value: Expression 
+}
+
+impl TryFrom<&str> for OperatorToken {
+    type Error = &'static str;
+
+    fn try_from(s: &str) -> Result<Self, Self::Error>  {
+        Ok(match s {
+            "+" => Self::Add,
+            "&&" => Self::And,
+            "b-and" => Self::BAnd,
+            "b-or" => Self::BOr,
+            "b-Xor" => Self::BXor,
+            "/" => Self::Div,
+            "//" => Self::Divi,
+            "ends with" => Self::EndsWith,
+            "==" => Self::Eq,
+            "**" => Self::Exp,
+            "|" => Self::Filter,
+            "." => Self::Get,
+            ">" => Self::Gt,
+            ">=" => Self::Gte,
+            "in" => Self::In,
+            "is" => Self::Is,
+            "<" => Self::Lt,
+            "<=" => Self::Lte,
+            "matches" => Self::Matches,
+            "%" => Self::Modulo,
+            "*" => Self::Mul,
+            "!=" => Self::Neq,
+            "??" => Self::NullCoal,
+            "||" => Self::Or,
+            ".." => Self::Range,
+            "<=>" => Self::Starship,
+            "starts with" => Self::StartsWith,
+            "~" => Self::StrConcat,
+            "-" => Self::Sub,
+            _ => {return Err("Not a valid operator");}
+        })
+    }
+}
+
+impl Into<&str> for OperatorToken {
+    fn into(self) -> &'static str {
+        match self {
+            OperatorToken::Ternary => todo!("move to atoms"),
+            OperatorToken::BAnd => "b-and",
+            OperatorToken::BOr => "b-or",
+            OperatorToken::BXor => "b-xor",
+            OperatorToken::Or => "||",
+            OperatorToken::And => "&&",
+            OperatorToken::Eq => "==",
+            OperatorToken::Neq => "!=",
+            OperatorToken::Starship => "<=>",
+            OperatorToken::Lt => "<",
+            OperatorToken::Gt => ">",
+            OperatorToken::Gte => ">=",
+            OperatorToken::Lte => "<=",
+            OperatorToken::In => "in",
+            OperatorToken::Matches => "matches",
+            OperatorToken::StartsWith => "starts with",
+            OperatorToken::EndsWith => "ends with",
+            OperatorToken::Range => "..",
+            OperatorToken::Add => "+",
+            OperatorToken::Sub => "-",
+            OperatorToken::StrConcat => "~",
+            OperatorToken::Mul => "*",
+            OperatorToken::Div => "/",
+            OperatorToken::Divi => "//",
+            OperatorToken::Modulo => "%",
+            OperatorToken::Is => "is",
+            OperatorToken::Exp => "**",
+            OperatorToken::NullCoal => "??",
+            OperatorToken::Filter => "|",
+            OperatorToken::ArrayIndex => "[]",
+            OperatorToken::Get => ".",
+        }
+    }
 }
 
 impl Template {
