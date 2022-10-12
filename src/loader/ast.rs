@@ -1,5 +1,7 @@
 use std::{collections::HashMap, rc::Rc, cell::RefCell};
 
+use super::expression::ast::Expression;
+
 #[derive(Debug, PartialEq, Clone)]
 pub enum Module {
     Template(Template),
@@ -29,56 +31,7 @@ pub enum Content {
     Statement(Stmt),
 }
 
-#[derive(Debug, PartialEq, Clone)]
-pub enum Expression {
-    Atom(ExpressionAtom),
-    Term(Term)
-}
 
-#[derive(Debug, PartialEq, Clone)]
-pub enum ExpressionAtom {
-    Str(String),
-    Var(String),
-    Number(i64),
-    Float(f32),
-    Array(Vec<ExpressionToken>),
-    HashMap(Vec<KeyValuePair>),
-    Parens(Vec<ExpressionToken>),
-    Parent()
-}
-
-#[derive(Debug, PartialEq, Clone)]
-pub enum ExpressionToken {
-    Atom(ExpressionAtom),
-    Op(OperatorToken)
-}
-
-#[derive(Debug, PartialEq, Clone)]
-pub struct Term {
-    pub op: OperatorToken,
-    pub params: Vec<Expression>
-}
-
-#[derive(Debug, PartialEq, Clone, Copy)]
-pub enum OperatorToken {
-    Ternary,
-    BAnd, BOr, BXor,
-    Or, And,
-    Eq, Neq, Starship,
-    Lt, Gt, Gte, Lte,
-    In, Matches, StartsWith,
-    EndsWith, Range, Add, Sub,
-    StrConcat, Mul, Div, Divi,
-    Modulo, Is, Exp, NullCoal,
-    Filter, ArrayIndex, Get
-
-}
-
-#[derive(Debug, PartialEq, Clone)]
-pub struct KeyValuePair {
-    pub key: ExpressionAtom,
-    pub value: Expression,
-}
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct Block {
@@ -116,83 +69,6 @@ pub struct Setter {
     pub value: Expression 
 }
 
-impl TryFrom<&str> for OperatorToken {
-    type Error = &'static str;
-
-    fn try_from(s: &str) -> Result<Self, Self::Error>  {
-        Ok(match s {
-            "+" => Self::Add,
-            "&&" => Self::And,
-            "b-and" => Self::BAnd,
-            "b-or" => Self::BOr,
-            "b-Xor" => Self::BXor,
-            "/" => Self::Div,
-            "//" => Self::Divi,
-            "ends with" => Self::EndsWith,
-            "==" => Self::Eq,
-            "**" => Self::Exp,
-            "|" => Self::Filter,
-            "." => Self::Get,
-            ">" => Self::Gt,
-            ">=" => Self::Gte,
-            "in" => Self::In,
-            "is" => Self::Is,
-            "<" => Self::Lt,
-            "<=" => Self::Lte,
-            "matches" => Self::Matches,
-            "%" => Self::Modulo,
-            "*" => Self::Mul,
-            "!=" => Self::Neq,
-            "??" => Self::NullCoal,
-            "||" => Self::Or,
-            ".." => Self::Range,
-            "<=>" => Self::Starship,
-            "starts with" => Self::StartsWith,
-            "~" => Self::StrConcat,
-            "-" => Self::Sub,
-            _ => {return Err("Not a valid operator");}
-        })
-    }
-}
-
-impl Into<&str> for OperatorToken {
-    fn into(self) -> &'static str {
-        match self {
-            OperatorToken::Ternary => todo!("move to atoms"),
-            OperatorToken::BAnd => "b-and",
-            OperatorToken::BOr => "b-or",
-            OperatorToken::BXor => "b-xor",
-            OperatorToken::Or => "||",
-            OperatorToken::And => "&&",
-            OperatorToken::Eq => "==",
-            OperatorToken::Neq => "!=",
-            OperatorToken::Starship => "<=>",
-            OperatorToken::Lt => "<",
-            OperatorToken::Gt => ">",
-            OperatorToken::Gte => ">=",
-            OperatorToken::Lte => "<=",
-            OperatorToken::In => "in",
-            OperatorToken::Matches => "matches",
-            OperatorToken::StartsWith => "starts with",
-            OperatorToken::EndsWith => "ends with",
-            OperatorToken::Range => "..",
-            OperatorToken::Add => "+",
-            OperatorToken::Sub => "-",
-            OperatorToken::StrConcat => "~",
-            OperatorToken::Mul => "*",
-            OperatorToken::Div => "/",
-            OperatorToken::Divi => "//",
-            OperatorToken::Modulo => "%",
-            OperatorToken::Is => "is",
-            OperatorToken::Exp => "**",
-            OperatorToken::NullCoal => "??",
-            OperatorToken::Filter => "|",
-            OperatorToken::ArrayIndex => "[]",
-            OperatorToken::Get => ".",
-        }
-    }
-}
-
 impl Template {
     pub fn replace_includes(mut self, replace: &mut dyn FnMut(Content)-> Content) -> Template {
         self.content = self.content.into_iter().map(|c| replace_includes(c, replace)).collect();
@@ -222,7 +98,7 @@ fn replace_includes(content: Content, replace: &mut dyn FnMut(Content) -> Conten
 
 fn extend_blocks(content: &mut Contents, extensions: &mut HashMap<String, Box<Block>>) {
     for elem in content.iter_mut() {
-        if let Content::Block(base) = elem  {
+        if let Content::Block(ref mut base) = elem  {
             if let Some(child) = base.get_name().and_then(|name| extensions.remove(name)) {
                 let parent = std::mem::replace(base, child);
                 base.set_parents(parent)
@@ -243,7 +119,7 @@ impl Block {
     pub fn set_parents(&mut self, parent: Box<Block>) {
         for elem in self.contents.iter_mut() {
             match elem {
-                Content::Print(Expression::Atom(ExpressionAtom::Parent())) => *elem = Content::Block(parent.clone()),
+                Content::Print(Expression::Parent) => *elem = Content::Block(parent.clone()),
                 Content::Block(block) => block.set_parents(parent.clone()),
                 _ => ()
             }

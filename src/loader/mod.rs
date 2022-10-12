@@ -1,6 +1,6 @@
 pub mod ast;
 pub mod parser;
-mod expression_parser;
+pub mod expression;
 use std::{path::PathBuf, collections::HashMap, fs::File, io::Read};
 
 use self::ast::Content;

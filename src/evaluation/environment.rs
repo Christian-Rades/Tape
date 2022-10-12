@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use ext_php_rs::{types::Zval, convert::FromZval};
 
-use crate::loader::{ast::{Setter, ExpressionAtom}, Loader, Module};
+use crate::loader::{ast::Setter, Loader, Module};
 
 use anyhow::{anyhow, Result};
 
@@ -75,7 +75,7 @@ impl Env {
             if let Some(val) = scope.get(key) {
                 return match val {
                     TaggedValue::Zval(zv) => {
-                        Self::get_rec(zv, rest).and_then(TaggedValue::from_zval)
+                        Self::get_rec(&zv, rest).and_then(TaggedValue::from_zval)
                     },
                     _ => Some(val.clone())
                 }
