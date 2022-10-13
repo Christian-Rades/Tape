@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use ext_php_rs::{types::Zval, convert::FromZval};
+use ext_php_rs::{convert::FromZval, types::Zval};
 
 use crate::loader::{ast::Setter, Loader, Module};
 
@@ -11,17 +11,21 @@ use super::value::TaggedValue;
 pub struct Env {
     globals: Zval,
     stack: Vec<Scope>,
-    loader: Loader
+    loader: Loader,
 }
 
 type Scope = HashMap<String, TaggedValue>;
 
 impl Env {
     pub fn new(globals: Zval, loader: Loader) -> Self {
-        Self { globals, stack: vec![Scope::default()], loader}
+        Self {
+            globals,
+            stack: vec![Scope::default()],
+            loader,
+        }
     }
 
-    pub fn load_file<T: AsRef<str>>(&mut self, file: T) -> Result<Module>{
+    pub fn load_file<T: AsRef<str>>(&mut self, file: T) -> Result<Module> {
         self.loader.load(file)
     }
 
@@ -29,10 +33,10 @@ impl Env {
         self.stack.push(Scope::default());
         self
     }
-     pub fn exit_scope(mut self) -> Self {
-         self.stack.pop();
-         self
-     }
+    pub fn exit_scope(mut self) -> Self {
+        self.stack.pop();
+        self
+    }
 
     pub fn set(&mut self, name: &str, val: TaggedValue) {
         let scope = self.get_scope(name);
@@ -59,7 +63,7 @@ impl Env {
 
         match Self::get_rec(&self.globals, accessor) {
             Some(zv) => Ok(TaggedValue::Zval(zv.shallow_clone())),
-            None => Err(anyhow!("variable {} was not found", accessor))
+            None => Err(anyhow!("variable {} was not found", accessor)),
         }
     }
 
@@ -70,31 +74,32 @@ impl Env {
             (accessor, "")
         };
 
-
         for scope in self.stack.iter().rev() {
             if let Some(val) = scope.get(key) {
                 return match val {
                     TaggedValue::Zval(zv) => {
                         Self::get_rec(&zv, rest).and_then(TaggedValue::from_zval)
-                    },
-                    _ => Some(val.clone())
-                }
+                    }
+                    _ => Some(val.clone()),
+                };
             }
         }
         None
     }
 
     fn get_scope<'env>(&'env mut self, accessor: &'_ str) -> &'env mut Scope {
-        let key = accessor.split_once('.').map(|(k,_)| k).unwrap_or(accessor);
+        let key = accessor.split_once('.').map(|(k, _)| k).unwrap_or(accessor);
 
         let mut idx = self.stack.len() - 1;
-        for (i,scope) in self.stack.iter().enumerate().rev() {
+        for (i, scope) in self.stack.iter().enumerate().rev() {
             if scope.contains_key(key) {
                 idx = i;
                 break;
             }
         }
-        self.stack.get_mut(idx).expect("env should always contain 1 scope")
+        self.stack
+            .get_mut(idx)
+            .expect("env should always contain 1 scope")
     }
 
     fn get_rec<'a>(val: &'a Zval, accessor: &'_ str) -> Option<&'a Zval> {
@@ -114,7 +119,7 @@ impl Env {
 
         if val.is_object() {
             let obj = val.object()?;
-            return Self::get_rec(obj.get_property(key).ok()?, rest)
+            return Self::get_rec(obj.get_property(key).ok()?, rest);
         }
         None
     }

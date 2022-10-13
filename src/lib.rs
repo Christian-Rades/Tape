@@ -1,5 +1,5 @@
-mod loader;
 mod evaluation;
+mod loader;
 use std::path::PathBuf;
 
 use evaluation::environment::Env;
@@ -7,7 +7,6 @@ use ext_php_rs::{prelude::*, types::Zval};
 
 use anyhow::Result;
 use loader::Loader;
-
 
 #[php_function]
 pub fn render(base_dir: &str, template: &str, data: &mut Zval) -> Result<String> {

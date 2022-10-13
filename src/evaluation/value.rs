@@ -1,11 +1,11 @@
 use std::fmt::Display;
 
-use ext_php_rs::{types::Zval, convert::FromZval, flags::DataType};
+use ext_php_rs::{convert::FromZval, flags::DataType, types::Zval};
 
 pub enum TaggedValue {
     Str(String),
     Zval(Zval),
-    Usize(u64)
+    Usize(u64),
 }
 
 impl Display for TaggedValue {
@@ -26,7 +26,7 @@ impl Clone for TaggedValue {
         match self {
             Self::Str(s) => Self::Str(s.clone()),
             Self::Usize(u) => Self::Usize(*u),
-            Self::Zval(zv) => Self::Zval(zv.shallow_clone())
+            Self::Zval(zv) => Self::Zval(zv.shallow_clone()),
         }
     }
 }
@@ -37,13 +37,13 @@ impl Default for TaggedValue {
     }
 }
 
-impl From<&str> for TaggedValue  {
+impl From<&str> for TaggedValue {
     fn from(s: &str) -> Self {
         TaggedValue::Str(s.to_string())
     }
 }
 
-impl From<String> for TaggedValue  {
+impl From<String> for TaggedValue {
     fn from(s: String) -> Self {
         TaggedValue::Str(s)
     }
@@ -57,7 +57,7 @@ impl From<u64> for TaggedValue {
 
 impl FromZval<'_> for TaggedValue {
     const TYPE: ext_php_rs::flags::DataType = DataType::Mixed;
-    fn from_zval(zval: & Zval) -> Option<Self> {
+    fn from_zval(zval: &Zval) -> Option<Self> {
         Some(TaggedValue::Zval(zval.shallow_clone()))
     }
 }

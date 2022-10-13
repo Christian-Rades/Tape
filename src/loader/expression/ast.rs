@@ -11,17 +11,17 @@ pub enum Expression {
     Null,
     Array(Vec<Expression>),
     HashMap(Vec<KeyValuePair>),
-    Parent
+    Parent,
 }
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct Term {
     pub op: Operator,
-    pub params: Vec<Expression>
+    pub params: Vec<Expression>,
 }
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct KeyValuePair {
     pub key: Expression,
-    pub val: Expression
+    pub val: Expression,
 }
