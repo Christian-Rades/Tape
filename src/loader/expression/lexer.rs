@@ -37,6 +37,7 @@ fn lex_exprs(i: &str) -> IResult<&str, Vec<Token>> {
 
 fn lex_expr(i: &str) -> IResult<&str, Token> {
     alt((
+        lex_operator,
         lex_parent_call,
         lex_hash_map,
         lex_parens,
@@ -151,8 +152,76 @@ fn lex_key_value_pair(i: &str) -> IResult<&str, KVTokensPair> {
     Ok((rest, KVTokensPair { key, value }))
 }
 
+fn lex_operator(i: &str) -> IResult<&str, Token> {
+    let (rest, (_, op)) = tuple((multispace0, alt((lex_multi_char_operator,lex_single_operator))))(i)?;
+    Ok((rest, Token::Op(op)))
+}
+
+fn lex_multi_char_operator(i: &str) -> IResult<&str, Operator> {
+    let (rest, op) = alt((
+        tag("//"),
+        tag("in"),
+        tag("not"),
+        tag("is"),
+        tag("matches"),
+        tag("starts with"),
+        tag("ends with"),
+        tag("and"),
+        tag("or"),
+        tag("b-and"),
+        tag("b-or"),
+        tag("b-xor"),
+        tag("**"),
+        tag("??"),
+        tag(".."),
+        tag("=="),
+        tag("!="),
+        tag("<="),
+        tag(">="),
+        tag("<=>"),
+    ))(i)?;
+    Ok((rest, match op {
+        "//" => Operator::Divi,
+        "in" => Operator::In,
+        "not" => Operator::Not,
+        "is" => Operator::Is,
+        "matches" => Operator::Matches,
+        "starts with" => Operator::StartsWith,
+        "ends with" => Operator::EndsWith,
+        "and" => Operator::And,
+        "or" => Operator::Or,
+        "b-and" => Operator::BAnd,
+        "b-or" => Operator::BOr,
+        "b-xor" => Operator::BXor,
+        "**" => Operator::Exp,
+        "??" => Operator::NullCoal,
+        ".." => Operator::Range,
+        "==" => Operator::Eq,
+        "!=" => Operator::Neq,
+        "<=" => Operator::Lte,
+        ">=" => Operator::Gte,
+        "<=>" => Operator::Starship,
+        _ => unreachable!()
+    }))
+}
+
+fn lex_single_operator(i: &str) -> IResult<&str, Operator> {
+    let (rest, char) = one_of("+-*/~%|")(i)?;
+    match char {
+        '+' => Ok((rest, Operator::Add)),
+        '-' => Ok((rest, Operator::Sub)),
+        '*' => Ok((rest, Operator::Mul)),
+        '/' => Ok((rest, Operator::Div)),
+        '~' => Ok((rest, Operator::StrConcat)),
+        '%' => Ok((rest, Operator::Modulo)),
+        _ => unreachable!()
+    }
+}
+
 #[cfg(test)]
 mod tests {
+    use std::vec;
+
     use super::*;
     use pretty_assertions::assert_eq;
 
@@ -218,5 +287,26 @@ mod tests {
                 ])
             ))
         )
+    }
+
+    #[test]
+    fn test_lex_expressions() {
+        let expr = "2 + 3 * 4 == 14 and 'foo'  in ['foo', 'bar']";
+        assert_eq!(lex_exprs(expr), Ok(("", vec![
+            Token::Number(2),
+            Token::Op(Operator::Add),
+            Token::Number(3),
+            Token::Op(Operator::Mul),
+            Token::Number(4),
+            Token::Op(Operator::Eq),
+            Token::Number(14),
+            Token::Op(Operator::And),
+            Token::Str("foo".to_string()),
+            Token::Op(Operator::In),
+            Token::Array(vec![
+                Token::Str("foo".to_string()),
+                Token::Str("bar".to_string()),
+            ])
+        ])))
     }
 }

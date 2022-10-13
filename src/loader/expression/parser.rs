@@ -35,6 +35,7 @@ pub enum Operator {
     Filter,
     ArrayIndex,
     Get,
+    Not,
 }
 
 pub fn parse(input: &str) -> IResult<&str, Expression> {
