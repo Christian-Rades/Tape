@@ -30,7 +30,7 @@ pub struct KVTokensPair {
     pub value: Vec<Token>,
 }
 
-fn lex_exprs(i: &str) -> IResult<&str, Vec<Token>> {
+pub fn lex_exprs(i: &str) -> IResult<&str, Vec<Token>> {
     let (rest, exprs) = separated_list1(multispace1, lex_expr)(i)?;
     Ok((rest, exprs))
 }
