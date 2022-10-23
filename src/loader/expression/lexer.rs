@@ -3,11 +3,14 @@ use nom::{
     bytes::complete::{tag, take_while, take_while1},
     character::complete::{digit1, multispace0, multispace1, one_of},
     combinator::{map_res, not},
+    error::{make_error, ErrorKind, ParseError},
     multi::{many_till, separated_list0, separated_list1},
     number::complete::float,
     sequence::{delimited, separated_pair, tuple},
-    IResult,
+    Err, IResult,
 };
+
+use crate::loader::Span;
 
 use super::parser::Operator;
 
@@ -17,6 +20,7 @@ pub enum Token {
     Var(String),
     Number(i64),
     Float(f32),
+    Null,
     Array(Vec<Token>),
     HashMap(Vec<KVTokensPair>),
     Parens(Vec<Token>),
@@ -30,12 +34,12 @@ pub struct KVTokensPair {
     pub value: Vec<Token>,
 }
 
-pub fn lex_exprs(i: &str) -> IResult<&str, Vec<Token>> {
+pub fn lex_exprs(i: Span) -> IResult<Span, Vec<Token>> {
     let (rest, exprs) = separated_list1(multispace1, lex_expr)(i)?;
     Ok((rest, exprs))
 }
 
-fn lex_expr(i: &str) -> IResult<&str, Token> {
+fn lex_expr(i: Span) -> IResult<Span, Token> {
     alt((
         lex_operator,
         lex_parent_call,
@@ -49,18 +53,18 @@ fn lex_expr(i: &str) -> IResult<&str, Token> {
     ))(i)
 }
 
-fn lex_parent_call(i: &str) -> IResult<&str, Token> {
-    let (rest, _) = tag::<&str, &str, nom::error::Error<&str>>("parent()" /* value */)(i)?;
+fn lex_parent_call(i: Span) -> IResult<Span, Token> {
+    let (rest, _) = tag::<&str, Span, nom::error::Error<Span>>("parent()" /* value */)(i)?;
     Ok((rest, Token::Parent()))
 }
 
-fn lex_string_literal(i: &str) -> IResult<&str, Token> {
+fn lex_string_literal(i: Span) -> IResult<Span, Token> {
     let (rest, plain_str) = lex_quoted(i)?;
     Ok((rest, Token::Str(plain_str.to_string())))
 }
 
-fn lex_quoted(i: &str) -> IResult<&str, &str> {
-    let result = alt((
+fn lex_quoted(i: Span) -> IResult<Span, Span> {
+    alt((
         delimited(
             nom::character::complete::char('\''),
             take_while(|c| c != '\''),
@@ -71,40 +75,57 @@ fn lex_quoted(i: &str) -> IResult<&str, &str> {
             take_while(|c| c != '"'),
             nom::character::complete::char('"'),
         ),
-    ))(i)?;
-    Ok(result)
+    ))(i)
 }
 
-fn lex_var(i: &str) -> IResult<&str, Token> {
+fn lex_var(i: Span) -> IResult<Span, Token> {
     let is_identifier = |c| -> bool {
         ('a'..='z').contains(&c)
             || ('A'..='Z').contains(&c)
             || c == '_'
             || (0x7f as char <= c && c <= 0xff as char)
     };
-    let (rest, (part1, part2)) = dbg!(tuple((
+    let (rest, (part1, part2)) = tuple((
         take_while1(is_identifier),
-        take_while(|c| is_identifier(c) || ('0'..='9').contains(&c) || c == '.')
-    ))(i))?;
+        take_while(|c| is_identifier(c) || ('0'..='9').contains(&c) || c == '.'),
+    ))(i)?;
     let mut accessor = part1.to_string();
     accessor.push_str(part2.trim());
     Ok((rest, Token::Var(accessor)))
 }
 
-fn lex_float(i: &str) -> IResult<&str, Token> {
+fn lex_float(i: Span) -> IResult<Span, Token> {
     let (rest, f) = float(i)?;
     Ok((rest, Token::Float(f)))
 }
 
-fn lex_number(i: &str) -> IResult<&str, Token> {
-    //TODO add negative numbers
-    let (rest, number) = map_res(tuple((digit1, not(one_of("e.")))), |(number, ..)| {
-        str::parse(number)
-    })(i)?;
-    Ok((rest, Token::Number(number)))
+#[derive(Debug, PartialEq)]
+pub enum TwigError<I> {
+    NumberErr,
+    Nom(I, ErrorKind),
 }
 
-fn lex_parens(i: &str) -> IResult<&str, Token> {
+impl<I> ParseError<I> for TwigError<I> {
+    fn from_error_kind(input: I, kind: ErrorKind) -> Self {
+        TwigError::Nom(input, kind)
+    }
+
+    fn append(_: I, _: ErrorKind, other: Self) -> Self {
+        other
+    }
+}
+
+fn lex_number(i: Span) -> IResult<Span, Token> {
+    //TODO add negative numbers
+    let (rest, (number, ..)) = tuple((digit1, not(one_of("e."))))(i)?;
+
+    match str::parse(&number) {
+        Ok(num) => Ok((rest, Token::Number(num))),
+        Err(_) => Err(nom::Err::Error(make_error(i, ErrorKind::Digit))),
+    }
+}
+
+fn lex_parens(i: Span) -> IResult<Span, Token> {
     let (rest, (.., (child_exprs, ..))) = tuple((
         nom::character::complete::char('('),
         many_till(
@@ -115,7 +136,7 @@ fn lex_parens(i: &str) -> IResult<&str, Token> {
     Ok((rest, Token::Parens(child_exprs)))
 }
 
-fn lex_array(i: &str) -> IResult<&str, Token> {
+fn lex_array(i: Span) -> IResult<Span, Token> {
     let (rest, elems) = delimited(
         tuple((tag("["), multispace0)),
         separated_list0(tuple((multispace0, tag(","), multispace0)), lex_expr),
@@ -124,7 +145,7 @@ fn lex_array(i: &str) -> IResult<&str, Token> {
     Ok((rest, Token::Array(elems)))
 }
 
-fn lex_hash_map(i: &str) -> IResult<&str, Token> {
+fn lex_hash_map(i: Span) -> IResult<Span, Token> {
     let (rest, kv_pairs) = delimited(
         tuple((tag("{"), multispace0)),
         separated_list0(
@@ -136,7 +157,7 @@ fn lex_hash_map(i: &str) -> IResult<&str, Token> {
     Ok((rest, Token::HashMap(kv_pairs)))
 }
 
-fn lex_key_value_pair(i: &str) -> IResult<&str, KVTokensPair> {
+fn lex_key_value_pair(i: Span) -> IResult<Span, KVTokensPair> {
     let (rest, (key, value)) = separated_pair(
         alt((lex_parens, lex_string_literal, lex_var)),
         tuple((multispace0, tag(":"), multispace0)),
@@ -152,12 +173,15 @@ fn lex_key_value_pair(i: &str) -> IResult<&str, KVTokensPair> {
     Ok((rest, KVTokensPair { key, value }))
 }
 
-fn lex_operator(i: &str) -> IResult<&str, Token> {
-    let (rest, (_, op)) = tuple((multispace0, alt((lex_multi_char_operator,lex_single_operator))))(i)?;
+fn lex_operator(i: Span) -> IResult<Span, Token> {
+    let (rest, (_, op)) = tuple((
+        multispace0,
+        alt((lex_multi_char_operator, lex_single_operator)),
+    ))(i)?;
     Ok((rest, Token::Op(op)))
 }
 
-fn lex_multi_char_operator(i: &str) -> IResult<&str, Operator> {
+fn lex_multi_char_operator(i: Span) -> IResult<Span, Operator> {
     let (rest, op) = alt((
         tag("//"),
         tag("in"),
@@ -180,32 +204,35 @@ fn lex_multi_char_operator(i: &str) -> IResult<&str, Operator> {
         tag(">="),
         tag("<=>"),
     ))(i)?;
-    Ok((rest, match op {
-        "//" => Operator::Divi,
-        "in" => Operator::In,
-        "not" => Operator::Not,
-        "is" => Operator::Is,
-        "matches" => Operator::Matches,
-        "starts with" => Operator::StartsWith,
-        "ends with" => Operator::EndsWith,
-        "and" => Operator::And,
-        "or" => Operator::Or,
-        "b-and" => Operator::BAnd,
-        "b-or" => Operator::BOr,
-        "b-xor" => Operator::BXor,
-        "**" => Operator::Exp,
-        "??" => Operator::NullCoal,
-        ".." => Operator::Range,
-        "==" => Operator::Eq,
-        "!=" => Operator::Neq,
-        "<=" => Operator::Lte,
-        ">=" => Operator::Gte,
-        "<=>" => Operator::Starship,
-        _ => unreachable!()
-    }))
+    Ok((
+        rest,
+        match *op {
+            "//" => Operator::Divi,
+            "in" => Operator::In,
+            "not" => Operator::Not,
+            "is" => Operator::Is,
+            "matches" => Operator::Matches,
+            "starts with" => Operator::StartsWith,
+            "ends with" => Operator::EndsWith,
+            "and" => Operator::And,
+            "or" => Operator::Or,
+            "b-and" => Operator::BAnd,
+            "b-or" => Operator::BOr,
+            "b-xor" => Operator::BXor,
+            "**" => Operator::Exp,
+            "??" => Operator::NullCoal,
+            ".." => Operator::Range,
+            "==" => Operator::Eq,
+            "!=" => Operator::Neq,
+            "<=" => Operator::Lte,
+            ">=" => Operator::Gte,
+            "<=>" => Operator::Starship,
+            _ => unreachable!(),
+        },
+    ))
 }
 
-fn lex_single_operator(i: &str) -> IResult<&str, Operator> {
+fn lex_single_operator(i: Span) -> IResult<Span, Operator> {
     let (rest, char) = one_of("+-*/~%|")(i)?;
     match char {
         '+' => Ok((rest, Operator::Add)),
@@ -214,7 +241,7 @@ fn lex_single_operator(i: &str) -> IResult<&str, Operator> {
         '/' => Ok((rest, Operator::Div)),
         '~' => Ok((rest, Operator::StrConcat)),
         '%' => Ok((rest, Operator::Modulo)),
-        _ => unreachable!()
+        _ => unreachable!(),
     }
 }
 
@@ -227,49 +254,52 @@ mod tests {
 
     #[test]
     fn test_lex_var() {
-        let var = "foo.bar";
-        assert_eq!(lex_var(var), Ok(("", Token::Var("foo.bar".to_string()))))
+        let var = Span::new("foo.bar");
+        assert_eq!(
+            unspan(lex_var(var)),
+            ("", Token::Var("foo.bar".to_string()))
+        )
     }
 
     #[test]
     fn test_lex_str() {
-        let single_quote = "'foo'";
-        let double_quote = r#""foo""#;
+        let single_quote = Span::new("'foo'");
+        let double_quote = Span::new(r#""foo""#);
 
         assert_eq!(
-            lex_string_literal(single_quote),
-            Ok(("", Token::Str("foo".to_string())))
+            unspan(lex_string_literal(single_quote)),
+            ("", Token::Str("foo".to_string()))
         );
 
         assert_eq!(
-            lex_string_literal(double_quote),
-            Ok(("", Token::Str("foo".to_string())))
+            unspan(lex_string_literal(double_quote)),
+            ("", Token::Str("foo".to_string()))
         );
     }
 
     #[test]
     fn test_lex_array() {
-        let arr = "[ var, ',str',1]";
+        let arr = Span::new("[ var, ',str',1]");
 
         assert_eq!(
-            lex_array(arr),
-            Ok((
+            unspan(lex_array(arr)),
+            (
                 "",
                 Token::Array(vec![
                     Token::Var("var".to_string()),
                     Token::Str(",str".to_string()),
                     Token::Number(1)
                 ])
-            ))
+            )
         )
     }
 
     #[test]
     fn test_lex_hashmap() {
-        let hm = "{ key:'bar','key1' : var, (var): 1}";
+        let hm = Span::new("{ key:'bar','key1' : var, (var): 1}");
         assert_eq!(
-            lex_hash_map(hm),
-            Ok((
+            unspan(lex_hash_map(hm)),
+            (
                 "",
                 Token::HashMap(vec![
                     KVTokensPair {
@@ -285,28 +315,38 @@ mod tests {
                         value: vec![Token::Number(1)]
                     }
                 ])
-            ))
+            )
         )
     }
 
     #[test]
     fn test_lex_expressions() {
-        let expr = "2 + 3 * 4 == 14 and 'foo'  in ['foo', 'bar']";
-        assert_eq!(lex_exprs(expr), Ok(("", vec![
-            Token::Number(2),
-            Token::Op(Operator::Add),
-            Token::Number(3),
-            Token::Op(Operator::Mul),
-            Token::Number(4),
-            Token::Op(Operator::Eq),
-            Token::Number(14),
-            Token::Op(Operator::And),
-            Token::Str("foo".to_string()),
-            Token::Op(Operator::In),
-            Token::Array(vec![
-                Token::Str("foo".to_string()),
-                Token::Str("bar".to_string()),
-            ])
-        ])))
+        let expr = Span::new("2 + 3 * 4 == 14 and 'foo'  in ['foo', 'bar']");
+        assert_eq!(
+            unspan(lex_exprs(expr)),
+            (
+                "",
+                vec![
+                    Token::Number(2),
+                    Token::Op(Operator::Add),
+                    Token::Number(3),
+                    Token::Op(Operator::Mul),
+                    Token::Number(4),
+                    Token::Op(Operator::Eq),
+                    Token::Number(14),
+                    Token::Op(Operator::And),
+                    Token::Str("foo".to_string()),
+                    Token::Op(Operator::In),
+                    Token::Array(vec![
+                        Token::Str("foo".to_string()),
+                        Token::Str("bar".to_string()),
+                    ])
+                ]
+            )
+        )
+    }
+    fn unspan<O>(span: IResult<Span, O>) -> (&str, O) {
+        let (rest, out) = span.unwrap();
+        (rest.fragment(), out)
     }
 }

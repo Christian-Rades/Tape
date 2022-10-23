@@ -1,4 +1,5 @@
 pub mod environment;
+mod expressions;
 mod value;
 use std::{collections::HashMap, fmt::Write};
 

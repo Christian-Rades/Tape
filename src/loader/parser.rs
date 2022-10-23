@@ -15,15 +15,18 @@ use nom::{
         complete::{tag, take_till, take_while, take_while1},
         streaming::take_until,
     },
-    character::complete::{digit1, line_ending, multispace0, multispace1, one_of, space0},
-    combinator::{eof, map_res, not, opt},
-    multi::{many_till, separated_list0, separated_list1},
-    number::complete::float,
-    sequence::{delimited, separated_pair, tuple},
+    character::complete::{line_ending, multispace0, multispace1, space0},
+    combinator::{eof, opt},
+    multi::many_till,
+    sequence::{delimited, tuple},
     IResult,
 };
 
+use nom_locate::LocatedSpan;
+pub type Span<'a> = LocatedSpan<&'a str>;
+
 pub fn parse(name: String, input: &str) -> Result<Module> {
+    let input = Span::new(input);
     if let Ok((rest, parent)) = parse_extends(input) {
         match parse_contents(rest) {
             Ok((_, content)) => {
@@ -44,7 +47,7 @@ pub fn parse(name: String, input: &str) -> Result<Module> {
     }
 }
 
-fn parse_extends(i: &str) -> IResult<&str, String> {
+fn parse_extends(i: Span) -> IResult<Span, String> {
     let (rest, (.., parent)) = delimited(
         parse_block_tag_l,
         tuple((tag("extends"), multispace1, parse_quoted)),
@@ -53,18 +56,18 @@ fn parse_extends(i: &str) -> IResult<&str, String> {
     Ok((rest, parent.to_string()))
 }
 
-fn parse_block_tag_l(i: &str) -> IResult<&str, ()> {
+fn parse_block_tag_l(i: Span) -> IResult<Span, ()> {
     let (rest, _) = tuple((space0, tag("{%"), multispace1))(i)?;
     Ok((rest, ()))
 }
 
-fn parse_block_tag_r(i: &str) -> IResult<&str, ()> {
+fn parse_block_tag_r(i: Span) -> IResult<Span, ()> {
     let (rest, _) = tuple((multispace0, tag("%}"), opt(line_ending)))(i)?;
     Ok((rest, ()))
 }
 
-fn parse_quoted(i: &str) -> IResult<&str, &str> {
-    let result = alt((
+fn parse_quoted(i: Span) -> IResult<Span, Span> {
+    alt((
         delimited(
             nom::character::complete::char('\''),
             take_while(|c| c != '\''),
@@ -75,40 +78,39 @@ fn parse_quoted(i: &str) -> IResult<&str, &str> {
             take_while(|c| c != '"'),
             nom::character::complete::char('"'),
         ),
-    ))(i)?;
-    Ok(result)
+    ))(i)
 }
 
-fn parse_contents(i: &str) -> IResult<&str, Vec<Content>> {
+fn parse_contents(i: Span) -> IResult<Span, Vec<Content>> {
     let (_, (contents, _)) = many_till(parse_content, eof)(i)?;
-    Ok(("", contents))
+    Ok((Span::new(""), contents))
 }
 
-fn parse_content(i: &str) -> IResult<&str, Content> {
+fn parse_content(i: Span) -> IResult<Span, Content> {
     alt((parse_print, parse_statement, parse_block, parse_text))(i)
 }
 
-fn parse_text(i: &str) -> IResult<&str, Content> {
+fn parse_text(i: Span) -> IResult<Span, Content> {
     let (rest, text) = take_while1(|c| c != '{')(i)?;
     Ok((rest, Content::Text(text.to_string())))
 }
 
-fn parse_print(i: &str) -> IResult<&str, Content> {
+fn parse_print(i: Span) -> IResult<Span, Content> {
     let (rest, exprs) = delimited(parse_print_tag_l, expression::parse, parse_print_tag_r)(i)?;
     Ok((rest, Content::Print(exprs)))
 }
 
-fn parse_print_tag_l(i: &str) -> IResult<&str, ()> {
+fn parse_print_tag_l(i: Span) -> IResult<Span, ()> {
     let (rest, _) = tuple((tag("{{"), multispace1))(i)?;
     Ok((rest, ()))
 }
 
-fn parse_print_tag_r(i: &str) -> IResult<&str, ()> {
+fn parse_print_tag_r(i: Span) -> IResult<Span, ()> {
     let (rest, _) = tuple((multispace0, tag("}}")))(i)?;
     Ok((rest, ()))
 }
 
-fn parse_statement(i: &str) -> IResult<&str, Content> {
+fn parse_statement(i: Span) -> IResult<Span, Content> {
     let (rest, statement) = delimited(
         parse_block_tag_l,
         alt((parse_set_statement, parse_include_statement)),
@@ -117,7 +119,7 @@ fn parse_statement(i: &str) -> IResult<&str, Content> {
     Ok((rest, Content::Statement(statement)))
 }
 
-fn parse_set_statement(i: &str) -> IResult<&str, Stmt> {
+fn parse_set_statement(i: Span) -> IResult<Span, Stmt> {
     let (rest, (.., target, _, _, expr)) = tuple((
         tag("set"),
         multispace1,
@@ -135,12 +137,12 @@ fn parse_set_statement(i: &str) -> IResult<&str, Stmt> {
     ))
 }
 
-fn parse_include_statement(i: &str) -> IResult<&str, Stmt> {
+fn parse_include_statement(i: Span) -> IResult<Span, Stmt> {
     let (rest, (.., target)) = tuple((tag("include"), multispace1, parse_quoted))(i)?;
     Ok((rest, Stmt::Include(target.to_string())))
 }
 
-fn parse_block(i: &str) -> IResult<&str, Content> {
+fn parse_block(i: Span) -> IResult<Span, Content> {
     let (rest, typ) = parse_block_type(i)?;
     match typ {
         BlockType::BlockName(_) => {
@@ -160,7 +162,7 @@ fn parse_block(i: &str) -> IResult<&str, Content> {
     }
 }
 
-fn parse_block_type(i: &str) -> IResult<&str, BlockType> {
+fn parse_block_type(i: Span) -> IResult<Span, BlockType> {
     delimited(
         parse_block_tag_l,
         alt((parse_block_name, parse_loop)),
@@ -168,12 +170,12 @@ fn parse_block_type(i: &str) -> IResult<&str, BlockType> {
     )(i)
 }
 
-fn parse_block_name(i: &str) -> IResult<&str, BlockType> {
+fn parse_block_name(i: Span) -> IResult<Span, BlockType> {
     let (rest, (.., name)) = tuple((tag("block"), multispace1, (take_till(|c| c == ' '))))(i)?;
     Ok((rest, BlockType::BlockName(name.to_string())))
 }
 
-fn parse_loop(i: &str) -> IResult<&str, BlockType> {
+fn parse_loop(i: Span) -> IResult<Span, BlockType> {
     let (rest, (.., iter_type, _, _, iterator)) = tuple((
         tag("for"),
         multispace1,
@@ -191,12 +193,12 @@ fn parse_loop(i: &str) -> IResult<&str, BlockType> {
     ))
 }
 
-fn parse_single_var(i: &str) -> IResult<&str, IterationType> {
+fn parse_single_var(i: Span) -> IResult<Span, IterationType> {
     let (rest, varname) = take_until("in")(i)?;
     Ok((rest, IterationType::SingleVal(varname.trim().to_string())))
 }
 
-fn parse_key_value(i: &str) -> IResult<&str, IterationType> {
+fn parse_key_value(i: Span) -> IResult<Span, IterationType> {
     let (rest, (keyname, .., valname)) = tuple((
         take_till(|c| c == ',' || c == '%'),
         nom::character::complete::char(','),
@@ -216,27 +218,37 @@ mod tests {
 
     #[test]
     fn test_parse_quotes() {
-        let single = r#"'foo'"#;
-        let double = r#""foo""#;
-        assert_eq!(parse_quoted(single), Ok(("", "foo")));
-        assert_eq!(parse_quoted(double), Ok(("", "foo")));
+        let single = Span::new(r#"'foo'"#);
+        let double = Span::new(r#""foo""#);
+        assert_eq!(unspan_twice(parse_quoted(single)), ("", "foo"));
+        assert_eq!(unspan_twice(parse_quoted(double)), ("", "foo"));
     }
 
     #[test]
     fn test_parse_extends() {
-        let extends = "{% extends 'parent.html.twig' %}";
+        let extends = Span::new("{% extends 'parent.html.twig' %}");
         assert_eq!(
-            parse_extends(extends),
-            Ok(("", "parent.html.twig".to_string()))
+            unspan(parse_extends(extends)),
+            ("", "parent.html.twig".to_string())
         )
     }
 
     #[test]
     fn test_parse_text() {
-        let input = r#"first{# comment #}"#;
+        let input = Span::new(r#"first{# comment #}"#);
         assert_eq!(
-            parse_text(input),
-            Ok(("{# comment #}", Content::Text("first".to_string())))
+            unspan(parse_text(input)),
+            ("{# comment #}", Content::Text("first".to_string()))
         )
+    }
+
+    fn unspan<O>(span: IResult<Span, O>) -> (&str, O) {
+        let (rest, out) = span.unwrap();
+        (rest.fragment(), out)
+    }
+
+    fn unspan_twice<'a, 'b>(span: IResult<Span<'a>, Span<'b>>) -> (&'a str, &'b str) {
+        let (rest, out) = span.unwrap();
+        (rest.fragment(), out.fragment())
     }
 }

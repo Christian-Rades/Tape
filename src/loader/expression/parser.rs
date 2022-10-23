@@ -1,10 +1,15 @@
 use std::collections::VecDeque;
 
-use nom::{IResult, combinator::map_res};
+use nom::{combinator::map_res, IResult};
 
 use anyhow::Result;
 
-use super::{ast::{Expression, Term}, lexer::{Token, lex_exprs}};
+use crate::loader::Span;
+
+use super::{
+    ast::{Expression, Term},
+    lexer::{lex_exprs, Token},
+};
 
 #[derive(Debug, PartialEq, Clone, Copy)]
 pub enum Operator {
@@ -42,7 +47,7 @@ pub enum Operator {
     Not,
 }
 
-pub fn parse(input: &str) -> IResult<&str, Expression> {
+pub fn parse(input: Span) -> IResult<Span, Expression> {
     map_res(lex_exprs, parse_to_expression)(input)
 }
 
@@ -53,9 +58,12 @@ pub fn parse_to_expression(tokens: Vec<Token>) -> Result<Expression> {
 
 // see https://matklad.github.io/2020/04/13/simple-but-powerful-pratt-parsing.html
 fn parse_rec(tokens: &mut VecDeque<Token>, min_bp: u8) -> Result<Expression> {
-    let lhs = tokens.pop_front().unwrap_or_else(|| todo!("empty expr"));
+    let lhs = tokens.pop_front().unwrap_or(Token::Null);
 
     let mut lhs = match lhs {
+        Token::Null => {
+            return Ok(Expression::Null);
+        }
         Token::Parens(par_tokens) => parse_to_expression(par_tokens)?,
         Token::Float(f) => Expression::Float(f),
         Token::Number(n) => Expression::Number(n),
@@ -66,9 +74,8 @@ fn parse_rec(tokens: &mut VecDeque<Token>, min_bp: u8) -> Result<Expression> {
             if let Some(bp) = op.bp_prefix() {
                 Expression::Term(Term {
                     op,
-                    params: vec![parse_rec(tokens, bp)?]
-                }
-                )
+                    params: vec![parse_rec(tokens, bp)?],
+                })
             } else {
                 todo!("not a prefix op")
             }
@@ -79,20 +86,20 @@ fn parse_rec(tokens: &mut VecDeque<Token>, min_bp: u8) -> Result<Expression> {
         let op = match tokens.pop_front() {
             None => break,
             Some(Token::Op(op)) => op,
-            Some(x) => todo!("two atoms next to eachother {:?} {:?}", lhs, x)
+            Some(x) => todo!("two atoms next to eachother {:?} {:?}", lhs, x),
         };
 
         let (l_bp, r_bp) = op.bp_infix();
 
-        if l_bp  < min_bp {
+        if l_bp < min_bp {
             tokens.push_front(Token::Op(op));
             break;
         }
 
         let rhs = parse_rec(tokens, r_bp)?;
-        lhs = Expression::Term(Term{
+        lhs = Expression::Term(Term {
             op,
-            params: vec![lhs, rhs]
+            params: vec![lhs, rhs],
         })
     }
 
@@ -100,56 +107,55 @@ fn parse_rec(tokens: &mut VecDeque<Token>, min_bp: u8) -> Result<Expression> {
 }
 
 trait BindingPower {
-    fn bp_infix (&self) -> (u8, u8);
+    fn bp_infix(&self) -> (u8, u8);
     fn bp_prefix(&self) -> Option<u8>;
 }
 
 impl BindingPower for Operator {
-    fn bp_infix (&self) -> (u8, u8) {
+    fn bp_infix(&self) -> (u8, u8) {
         match self {
-            Self::Get =>         (63, 62),
+            Self::Get => (63, 62),
             &Self::ArrayIndex => unreachable!("operator is postfix"),
-            Self::Filter =>      (61, 60),
-            Self::NullCoal =>    (59, 58),
-            Self::Exp =>         (57, 56),
-            Self::Is =>          (55, 54),
-            Self::Modulo =>      (53, 52),
-            Self::Divi=>         (51, 50),
-            Self::Div =>         (49, 48),
-            Self::Mul =>         (47, 46),
-            Self::StrConcat =>   (45, 44),
-            Self::Sub =>         (43, 42),
-            Self::Add =>         (41, 40),
-            Self::Range =>       (39, 38),
-            Self::EndsWith =>     (37, 36),
-            Self::StartsWith =>  (35, 34),
-            Self::Matches =>     (33, 32),
-            Self::In =>          (31, 30),
-            Self::Lte =>         (27, 26),
-            Self::Gte =>         (25, 24),
-            Self::Gt =>          (23, 22),
-            Self::Lt =>          (21, 20),
-            Self::Starship =>    (19, 18),
-            Self::Not =>        unreachable!("operator is prefix"),
-            Self::Neq =>         (15, 14),
-            Self::Eq =>          (13, 12),
-            Self::And =>         (11, 10),
-            Self::Or =>          (9, 8),
-            Self::BOr =>         (7, 6),
-            Self::BXor =>        (5, 4),
-            Self::BAnd =>        (3, 2),
-            Self::Ternary =>     todo!("ternary not yet supported"),
+            Self::Filter => (61, 60),
+            Self::NullCoal => (59, 58),
+            Self::Exp => (57, 56),
+            Self::Is => (55, 54),
+            Self::Modulo => (53, 52),
+            Self::Divi => (51, 50),
+            Self::Div => (49, 48),
+            Self::Mul => (47, 46),
+            Self::StrConcat => (45, 44),
+            Self::Sub => (43, 42),
+            Self::Add => (41, 40),
+            Self::Range => (39, 38),
+            Self::EndsWith => (37, 36),
+            Self::StartsWith => (35, 34),
+            Self::Matches => (33, 32),
+            Self::In => (31, 30),
+            Self::Lte => (27, 26),
+            Self::Gte => (25, 24),
+            Self::Gt => (23, 22),
+            Self::Lt => (21, 20),
+            Self::Starship => (19, 18),
+            Self::Not => unreachable!("operator is prefix"),
+            Self::Neq => (15, 14),
+            Self::Eq => (13, 12),
+            Self::And => (11, 10),
+            Self::Or => (9, 8),
+            Self::BOr => (7, 6),
+            Self::BXor => (5, 4),
+            Self::BAnd => (3, 2),
+            Self::Ternary => todo!("ternary not yet supported"),
         }
     }
 
     fn bp_prefix(&self) -> Option<u8> {
         match self {
             Self::Not => Some(16),
-            _ => None
+            _ => None,
         }
     }
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -163,22 +169,22 @@ mod tests {
             Token::Op(Operator::Add),
             Token::Number(2),
             Token::Op(Operator::Mul),
-            Token::Number(3)
+            Token::Number(3),
         ];
 
-        assert_eq!(parse_to_expression(tokens).unwrap(), Expression::Term(Term{
-            op: Operator::Add,
-            params: vec![
-                Expression::Number(1),
-                Expression::Term(Term{
-                    op: Operator::Mul,
-                    params: vec![
-                        Expression::Number(2),
-                        Expression::Number(3),
-                    ]
-                })
-            ]
-        }))
+        assert_eq!(
+            parse_to_expression(tokens).unwrap(),
+            Expression::Term(Term {
+                op: Operator::Add,
+                params: vec![
+                    Expression::Number(1),
+                    Expression::Term(Term {
+                        op: Operator::Mul,
+                        params: vec![Expression::Number(2), Expression::Number(3),]
+                    })
+                ]
+            })
+        )
     }
 
     #[test]
@@ -189,23 +195,23 @@ mod tests {
             Token::Parens(vec![
                 Token::Number(2),
                 Token::Op(Operator::Add),
-                Token::Number(3)
-            ])
+                Token::Number(3),
+            ]),
         ];
 
-        assert_eq!(parse_to_expression(tokens).unwrap(), Expression::Term(Term {
-            op: Operator::Mul,
-            params: vec![
-                Expression::Number(1),
-                Expression::Term(Term {
-                    op: Operator::Add,
-                    params: vec![
-                        Expression::Number(2),
-                        Expression::Number(3)
-                    ]
-                })
-            ]
-        }))
+        assert_eq!(
+            parse_to_expression(tokens).unwrap(),
+            Expression::Term(Term {
+                op: Operator::Mul,
+                params: vec![
+                    Expression::Number(1),
+                    Expression::Term(Term {
+                        op: Operator::Add,
+                        params: vec![Expression::Number(2), Expression::Number(3)]
+                    })
+                ]
+            })
+        )
     }
 
     #[test]
@@ -221,29 +227,24 @@ mod tests {
             Token::Number(5),
         ];
 
-        assert_eq!(parse_to_expression(tokens).unwrap(), Expression::Term( Term {
-            op: Operator::And,
-            params: vec![
-                Expression::Term(Term {
-                    op: Operator::Not,
-                    params: vec![
-                        Expression::Term(Term {
+        assert_eq!(
+            parse_to_expression(tokens).unwrap(),
+            Expression::Term(Term {
+                op: Operator::And,
+                params: vec![
+                    Expression::Term(Term {
+                        op: Operator::Not,
+                        params: vec![Expression::Term(Term {
                             op: Operator::Lte,
-                            params: vec![
-                                Expression::Number(2),
-                                Expression::Number(3),
-                            ]
-                        }),
-                    ]
-                }),
-                Expression::Term(Term {
-                    op: Operator::Gte,
-                    params: vec![
-                        Expression::Number(4),
-                        Expression::Number(5)
-                    ]
-                })
-            ]
-        }))
+                            params: vec![Expression::Number(2), Expression::Number(3),]
+                        }),]
+                    }),
+                    Expression::Term(Term {
+                        op: Operator::Gte,
+                        params: vec![Expression::Number(4), Expression::Number(5)]
+                    })
+                ]
+            })
+        )
     }
 }

@@ -6,7 +6,7 @@ use std::{collections::HashMap, fs::File, io::Read, path::PathBuf};
 use self::ast::Content;
 pub use self::{
     ast::{Extension, Module, Template},
-    parser::parse,
+    parser::{parse, Span},
 };
 
 use anyhow::Result;
