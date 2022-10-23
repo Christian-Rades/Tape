@@ -62,19 +62,30 @@ fn parse_rec(tokens: &mut VecDeque<Token>, min_bp: u8) -> Result<Expression> {
         Token::Parent() => Expression::Parent,
         Token::Str(s) => Expression::Str(s),
         Token::Var(v) => Expression::Var(v),
+        Token::Op(op) => {
+            if let Some(bp) = op.bp_prefix() {
+                Expression::Term(Term {
+                    op,
+                    params: vec![parse_rec(tokens, bp)?]
+                }
+                )
+            } else {
+                todo!("not a prefix op")
+            }
+        }
         _ => todo!("lhs not an atom"),
     };
-
     loop {
         let op = match tokens.pop_front() {
             None => break,
             Some(Token::Op(op)) => op,
-            x => todo!("two atoms next to eachother {:?}", x)
+            Some(x) => todo!("two atoms next to eachother {:?} {:?}", lhs, x)
         };
 
         let (l_bp, r_bp) = op.bp_infix();
 
         if l_bp  < min_bp {
+            tokens.push_front(Token::Op(op));
             break;
         }
 
@@ -90,34 +101,36 @@ fn parse_rec(tokens: &mut VecDeque<Token>, min_bp: u8) -> Result<Expression> {
 
 trait BindingPower {
     fn bp_infix (&self) -> (u8, u8);
+    fn bp_prefix(&self) -> Option<u8>;
 }
 
 impl BindingPower for Operator {
     fn bp_infix (&self) -> (u8, u8) {
         match self {
-            Self::Get =>         (61, 60),
+            Self::Get =>         (63, 62),
             &Self::ArrayIndex => unreachable!("operator is postfix"),
-            Self::Filter =>      (59, 58),
-            Self::NullCoal =>    (57, 56),
-            Self::Exp =>         (55, 54),
-            Self::Is =>          (53, 52),
-            Self::Modulo =>      (51, 50),
-            Self::Divi=>         (49, 48),
-            Self::Div =>         (47, 46),
-            Self::Mul =>         (45, 44),
-            Self::StrConcat =>   (43, 42),
-            Self::Sub =>         (41, 40),
-            Self::Add =>         (39, 38),
-            Self::Range =>       (37, 36),
-            Self::EndsWith =>     (35, 34),
-            Self::StartsWith =>  (33, 32),
-            Self::Matches =>     (31, 30),
-            Self::In =>          (29, 28),
-            Self::Lte =>         (25, 24),
-            Self::Gte =>         (23, 22),
-            Self::Gt =>          (21, 20),
-            Self::Lt =>          (19, 18),
-            Self::Starship =>    (17, 16),
+            Self::Filter =>      (61, 60),
+            Self::NullCoal =>    (59, 58),
+            Self::Exp =>         (57, 56),
+            Self::Is =>          (55, 54),
+            Self::Modulo =>      (53, 52),
+            Self::Divi=>         (51, 50),
+            Self::Div =>         (49, 48),
+            Self::Mul =>         (47, 46),
+            Self::StrConcat =>   (45, 44),
+            Self::Sub =>         (43, 42),
+            Self::Add =>         (41, 40),
+            Self::Range =>       (39, 38),
+            Self::EndsWith =>     (37, 36),
+            Self::StartsWith =>  (35, 34),
+            Self::Matches =>     (33, 32),
+            Self::In =>          (31, 30),
+            Self::Lte =>         (27, 26),
+            Self::Gte =>         (25, 24),
+            Self::Gt =>          (23, 22),
+            Self::Lt =>          (21, 20),
+            Self::Starship =>    (19, 18),
+            Self::Not =>        unreachable!("operator is prefix"),
             Self::Neq =>         (15, 14),
             Self::Eq =>          (13, 12),
             Self::And =>         (11, 10),
@@ -126,7 +139,13 @@ impl BindingPower for Operator {
             Self::BXor =>        (5, 4),
             Self::BAnd =>        (3, 2),
             Self::Ternary =>     todo!("ternary not yet supported"),
-            &Self::Not =>        unreachable!("operator is prefix")
+        }
+    }
+
+    fn bp_prefix(&self) -> Option<u8> {
+        match self {
+            Self::Not => Some(16),
+            _ => None
         }
     }
 }
@@ -183,6 +202,45 @@ mod tests {
                     params: vec![
                         Expression::Number(2),
                         Expression::Number(3)
+                    ]
+                })
+            ]
+        }))
+    }
+
+    #[test]
+    fn test_not() {
+        let tokens = vec![
+            Token::Op(Operator::Not),
+            Token::Number(2),
+            Token::Op(Operator::Lte),
+            Token::Number(3),
+            Token::Op(Operator::And),
+            Token::Number(4),
+            Token::Op(Operator::Gte),
+            Token::Number(5),
+        ];
+
+        assert_eq!(parse_to_expression(tokens).unwrap(), Expression::Term( Term {
+            op: Operator::And,
+            params: vec![
+                Expression::Term(Term {
+                    op: Operator::Not,
+                    params: vec![
+                        Expression::Term(Term {
+                            op: Operator::Lte,
+                            params: vec![
+                                Expression::Number(2),
+                                Expression::Number(3),
+                            ]
+                        }),
+                    ]
+                }),
+                Expression::Term(Term {
+                    op: Operator::Gte,
+                    params: vec![
+                        Expression::Number(4),
+                        Expression::Number(5)
                     ]
                 })
             ]
