@@ -6,7 +6,7 @@ use crate::loader::{ast::Setter, Loader, Module};
 
 use anyhow::{anyhow, Result};
 
-use super::value::TaggedValue;
+use super::{value::TaggedValue, expressions::Evaluate};
 
 pub struct Env {
     globals: Zval,
@@ -44,12 +44,7 @@ impl Env {
     }
 
     pub fn apply_setter(&mut self, setter: &Setter) {
-        let val = match &setter.value {
-            //ExpressionAtom::Str(str) => TaggedValue::Str(str.to_string()),
-            //ExpressionAtom::Var(var_name) => self.get(var_name).unwrap_or_default(),
-            _ => todo!(),
-        };
-        self.set(&setter.target, val)
+        self.set(&setter.target, setter.value.eval(self).expect("fix error case"))
     }
 
     pub fn get(&self, accessor: &str) -> Result<TaggedValue> {

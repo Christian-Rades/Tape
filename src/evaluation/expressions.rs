@@ -7,6 +7,16 @@ use super::{
 
 use anyhow::Result;
 
-fn eval_expr(expr: Expression, env: Env) -> Result<TaggedValue> {
-    Ok(TaggedValue::Str("foo".to_string()))
+pub trait Evaluate {
+    fn eval(&self, env: &Env) -> Result<TaggedValue>;
+}
+
+impl Evaluate for Expression {
+    fn eval(&self, env: &Env) -> Result<TaggedValue> { 
+        match self {
+            Expression::Var(name) => env.get(name),
+            Expression::Str(s)  => Ok(TaggedValue::Str(s.to_string())),
+            _ => todo!("implement me: {:?}", self)
+        }
+    }
 }

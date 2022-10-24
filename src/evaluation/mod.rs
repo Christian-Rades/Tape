@@ -5,11 +5,11 @@ use std::{collections::HashMap, fmt::Write};
 
 use ext_php_rs::convert::FromZval;
 
-use crate::loader::{
+use crate::{loader::{
     ast::{Block, BlockType, Content, Contents, IterationType, Stmt, Template},
     expression::ast::Expression,
     Extension, Module,
-};
+}, evaluation::expressions::Evaluate};
 
 use anyhow::{anyhow, Context, Result};
 
@@ -82,11 +82,7 @@ impl Renderable for Content {
 
 impl Renderable for Expression {
     fn render<T: Write>(&self, out: &mut T, env: Env) -> Result<Env> {
-        match self {
-            Self::Str(str) => write!(out, "{}", str)?,
-            Self::Var(var_name) => write!(out, "{}", env.get(var_name).unwrap_or_default())?,
-            _ => todo!(),
-        }
+        write!(out, "{}", self.eval(&env).unwrap_or_default())?;
         Ok(env)
     }
 }
