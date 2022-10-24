@@ -12,8 +12,7 @@ use anyhow::{anyhow, Result};
 use nom::{
     branch::alt,
     bytes::{
-        complete::{tag, take_till, take_while, take_while1},
-        streaming::take_until,
+        complete::{tag, take_till, take_while, take_while1, take_until}
     },
     character::complete::{line_ending, multispace0, multispace1, space0},
     combinator::{eof, opt},
@@ -96,8 +95,9 @@ fn parse_text(i: Span) -> IResult<Span, Content> {
 }
 
 fn parse_print(i: Span) -> IResult<Span, Content> {
-    let (rest, exprs) = delimited(parse_print_tag_l, expression::parse, parse_print_tag_r)(i)?;
-    Ok((rest, Content::Print(exprs)))
+    let (rest, expr) = delimited(parse_print_tag_l, take_until("}}"), parse_print_tag_r)(i)?;
+    let (_, expr) = expression::parse(expr)?;
+    Ok((rest, Content::Print(expr)))
 }
 
 fn parse_print_tag_l(i: Span) -> IResult<Span, ()> {
@@ -126,8 +126,9 @@ fn parse_set_statement(i: Span) -> IResult<Span, Stmt> {
         take_till(|c| c == '='),
         nom::character::complete::char('='),
         multispace0,
-        expression::parse,
+        take_until("%}"),
     ))(i)?;
+    let (_, expr) = expression::parse(expr)?;
     Ok((
         rest,
         Stmt::Set(Setter {

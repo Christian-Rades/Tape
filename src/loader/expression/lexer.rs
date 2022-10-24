@@ -2,11 +2,11 @@ use nom::{
     branch::alt,
     bytes::complete::{tag, take_while, take_while1},
     character::complete::{digit1, multispace0, multispace1, one_of},
-    combinator::{map_res, not},
+    combinator::{map_res, not, eof, opt},
     error::{make_error, ErrorKind, ParseError},
     multi::{many_till, separated_list0, separated_list1},
     number::complete::float,
-    sequence::{delimited, separated_pair, tuple},
+    sequence::{delimited, separated_pair, tuple, terminated, preceded},
     Err, IResult,
 };
 
@@ -35,8 +35,12 @@ pub struct KVTokensPair {
 }
 
 pub fn lex_exprs(i: Span) -> IResult<Span, Vec<Token>> {
-    let (rest, exprs) = separated_list1(multispace1, lex_expr)(i)?;
+    let (rest, (exprs, _)) = preceded(multispace0, many_till( lex_exprs_elem, eof))(i)?;
     Ok((rest, exprs))
+}
+
+fn lex_exprs_elem(i: Span) -> IResult<Span, Token> {
+    terminated(lex_expr, opt(multispace1))(i)
 }
 
 fn lex_expr(i: Span) -> IResult<Span, Token> {
@@ -161,7 +165,7 @@ fn lex_key_value_pair(i: Span) -> IResult<Span, KVTokensPair> {
     let (rest, (key, value)) = separated_pair(
         alt((lex_parens, lex_string_literal, lex_var)),
         tuple((multispace0, tag(":"), multispace0)),
-        lex_exprs,
+        separated_list1(multispace1, lex_expr),
     )(i)?;
     //hash keys are allowed to be unqouted
     let key = match key {
@@ -184,17 +188,17 @@ fn lex_operator(i: Span) -> IResult<Span, Token> {
 fn lex_multi_char_operator(i: Span) -> IResult<Span, Operator> {
     let (rest, op) = alt((
         tag("//"),
-        tag("in"),
-        tag("not"),
-        tag("is"),
-        tag("matches"),
-        tag("starts with"),
-        tag("ends with"),
-        tag("and"),
-        tag("or"),
-        tag("b-and"),
-        tag("b-or"),
-        tag("b-xor"),
+        tag("in "),
+        tag("not "),
+        tag("is "),
+        tag("matches "),
+        tag("starts with "),
+        tag("ends with "),
+        tag("and "),
+        tag("or "),
+        tag("b-and "),
+        tag("b-or "),
+        tag("b-xor "),
         tag("**"),
         tag("??"),
         tag(".."),
@@ -208,17 +212,17 @@ fn lex_multi_char_operator(i: Span) -> IResult<Span, Operator> {
         rest,
         match *op {
             "//" => Operator::Divi,
-            "in" => Operator::In,
-            "not" => Operator::Not,
-            "is" => Operator::Is,
-            "matches" => Operator::Matches,
-            "starts with" => Operator::StartsWith,
-            "ends with" => Operator::EndsWith,
-            "and" => Operator::And,
-            "or" => Operator::Or,
-            "b-and" => Operator::BAnd,
-            "b-or" => Operator::BOr,
-            "b-xor" => Operator::BXor,
+            "in " => Operator::In,
+            "not " => Operator::Not,
+            "is " => Operator::Is,
+            "matches " => Operator::Matches,
+            "starts with " => Operator::StartsWith,
+            "ends with " => Operator::EndsWith,
+            "and " => Operator::And,
+            "or " => Operator::Or,
+            "b-and " => Operator::BAnd,
+            "b-or " => Operator::BOr,
+            "b-xor " => Operator::BXor,
             "**" => Operator::Exp,
             "??" => Operator::NullCoal,
             ".." => Operator::Range,
@@ -254,10 +258,10 @@ mod tests {
 
     #[test]
     fn test_lex_var() {
-        let var = Span::new("foo.bar");
+        let var = Span::new("foo.bar ");
         assert_eq!(
             unspan(lex_var(var)),
-            ("", Token::Var("foo.bar".to_string()))
+            (" ", Token::Var("foo.bar".to_string()))
         )
     }
 

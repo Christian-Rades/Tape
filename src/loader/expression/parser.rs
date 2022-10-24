@@ -2,7 +2,7 @@ use std::collections::VecDeque;
 
 use nom::{combinator::map_res, IResult};
 
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 
 use crate::loader::Span;
 
@@ -77,7 +77,7 @@ fn parse_rec(tokens: &mut VecDeque<Token>, min_bp: u8) -> Result<Expression> {
                     params: vec![parse_rec(tokens, bp)?],
                 })
             } else {
-                todo!("not a prefix op")
+                return Err(anyhow!("not a prefix op: {:?}", op));
             }
         }
         _ => todo!("lhs not an atom"),
