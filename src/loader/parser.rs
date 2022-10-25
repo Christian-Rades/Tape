@@ -11,9 +11,7 @@ use std::collections::HashMap;
 use anyhow::{anyhow, Result};
 use nom::{
     branch::alt,
-    bytes::{
-        complete::{tag, take_till, take_while, take_while1, take_until}
-    },
+    bytes::complete::{tag, take_till, take_until, take_while, take_while1},
     character::complete::{line_ending, multispace0, multispace1, space0},
     combinator::{eof, opt},
     multi::many_till,

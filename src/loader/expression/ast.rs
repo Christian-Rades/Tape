@@ -6,7 +6,7 @@ pub enum Expression {
     Str(String),
     Var(String),
     Number(i64),
-    Float(f32),
+    Float(f64),
     Bool(bool),
     Null,
     Array(Vec<Expression>),

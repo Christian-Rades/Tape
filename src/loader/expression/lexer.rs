@@ -2,11 +2,11 @@ use nom::{
     branch::alt,
     bytes::complete::{tag, take_while, take_while1},
     character::complete::{digit1, multispace0, multispace1, one_of},
-    combinator::{map_res, not, eof, opt},
+    combinator::{eof, map_res, not, opt},
     error::{make_error, ErrorKind, ParseError},
     multi::{many_till, separated_list0, separated_list1},
     number::complete::float,
-    sequence::{delimited, separated_pair, tuple, terminated, preceded},
+    sequence::{delimited, preceded, separated_pair, terminated, tuple},
     Err, IResult,
 };
 
@@ -19,7 +19,7 @@ pub enum Token {
     Str(String),
     Var(String),
     Number(i64),
-    Float(f32),
+    Float(f64),
     Null,
     Array(Vec<Token>),
     HashMap(Vec<KVTokensPair>),
@@ -35,7 +35,7 @@ pub struct KVTokensPair {
 }
 
 pub fn lex_exprs(i: Span) -> IResult<Span, Vec<Token>> {
-    let (rest, (exprs, _)) = preceded(multispace0, many_till( lex_exprs_elem, eof))(i)?;
+    let (rest, (exprs, _)) = preceded(multispace0, many_till(lex_exprs_elem, eof))(i)?;
     Ok((rest, exprs))
 }
 
@@ -100,7 +100,7 @@ fn lex_var(i: Span) -> IResult<Span, Token> {
 
 fn lex_float(i: Span) -> IResult<Span, Token> {
     let (rest, f) = float(i)?;
-    Ok((rest, Token::Float(f)))
+    Ok((rest, Token::Float(f.into())))
 }
 
 #[derive(Debug, PartialEq)]
@@ -133,7 +133,7 @@ fn lex_parens(i: Span) -> IResult<Span, Token> {
     let (rest, (.., (child_exprs, ..))) = tuple((
         nom::character::complete::char('('),
         many_till(
-            lex_expr,
+            lex_exprs_elem,
             tuple((multispace0, nom::character::complete::char(')'))),
         ),
     ))(i)?;

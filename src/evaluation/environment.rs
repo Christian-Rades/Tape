@@ -6,7 +6,7 @@ use crate::loader::{ast::Setter, Loader, Module};
 
 use anyhow::{anyhow, Result};
 
-use super::{value::TaggedValue, expressions::Evaluate};
+use super::{expressions::Evaluate, value::TaggedValue};
 
 pub struct Env {
     globals: Zval,
@@ -44,7 +44,10 @@ impl Env {
     }
 
     pub fn apply_setter(&mut self, setter: &Setter) {
-        self.set(&setter.target, setter.value.eval(self).expect("fix error case"))
+        self.set(
+            &setter.target,
+            setter.value.eval(self).expect("fix error case"),
+        )
     }
 
     pub fn get(&self, accessor: &str) -> Result<TaggedValue> {

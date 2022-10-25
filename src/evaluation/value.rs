@@ -1,11 +1,14 @@
 use std::fmt::Display;
 
 use ext_php_rs::{convert::FromZval, flags::DataType, types::Zval};
-
+use rust_decimal::{prelude::FromPrimitive, Decimal};
+#[derive(Debug)]
 pub enum TaggedValue {
     Str(String),
     Zval(Zval),
     Usize(u64),
+    Number(i64),
+    Float(f64),
 }
 
 impl Display for TaggedValue {
@@ -13,6 +16,14 @@ impl Display for TaggedValue {
         match self {
             Self::Str(s) => write!(f, "{}", &s),
             Self::Usize(us) => write!(f, "{}", us),
+            Self::Number(n) => write!(f, "{}", n),
+            Self::Float(fl) => {
+                if let Some(dec) = Decimal::from_f64(*fl) {
+                    write!(f, "{}", dec.round_dp(6).normalize())
+                } else {
+                    write!(f, "{}", fl)
+                }
+            }
             Self::Zval(zv) => {
                 // TODO check if this behavior is ok
                 write!(f, "{}", zv.str().unwrap_or(""))
@@ -26,6 +37,8 @@ impl Clone for TaggedValue {
         match self {
             Self::Str(s) => Self::Str(s.clone()),
             Self::Usize(u) => Self::Usize(*u),
+            Self::Number(n) => Self::Number(*n),
+            Self::Float(f) => Self::Float(*f),
             Self::Zval(zv) => Self::Zval(zv.shallow_clone()),
         }
     }
