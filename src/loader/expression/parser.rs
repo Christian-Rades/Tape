@@ -70,6 +70,7 @@ fn parse_rec(tokens: &mut VecDeque<Token>, min_bp: u8) -> Result<Expression> {
         Token::Parent() => Expression::Parent,
         Token::Str(s) => Expression::Str(s),
         Token::Var(v) => Expression::Var(v),
+        Token::Bool(b) => Expression::Bool(b),
         Token::Op(op) => {
             if let Some(bp) = op.bp_prefix() {
                 Expression::Term(Term {

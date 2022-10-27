@@ -22,6 +22,7 @@ impl Evaluate for Expression {
             Expression::Str(s) => Ok(TaggedValue::Str(s.to_string())),
             Expression::Number(n) => Ok(TaggedValue::Number(*n)),
             Expression::Float(f) => Ok(TaggedValue::Float(*f)),
+            Expression::Bool(b) => Ok(TaggedValue::Bool(*b)),
             Expression::Term(term) => {
                 let params: Result<Vec<TaggedValue>> =
                     term.params.iter().map(|p| p.eval(env)).collect();

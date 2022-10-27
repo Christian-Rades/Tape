@@ -20,6 +20,7 @@ pub enum Token {
     Var(String),
     Number(i64),
     Float(f64),
+    Bool(bool),
     Null,
     Array(Vec<Token>),
     HashMap(Vec<KVTokensPair>),
@@ -46,6 +47,7 @@ fn lex_exprs_elem(i: Span) -> IResult<Span, Token> {
 fn lex_expr(i: Span) -> IResult<Span, Token> {
     alt((
         lex_operator,
+        lex_bool,
         lex_parent_call,
         lex_hash_map,
         lex_parens,
@@ -60,6 +62,11 @@ fn lex_expr(i: Span) -> IResult<Span, Token> {
 fn lex_parent_call(i: Span) -> IResult<Span, Token> {
     let (rest, _) = tag::<&str, Span, nom::error::Error<Span>>("parent()" /* value */)(i)?;
     Ok((rest, Token::Parent()))
+}
+
+fn lex_bool(i: Span) -> IResult<Span, Token> {
+    let (rest, word) = alt((tag("true"), tag("false")))(i)?;
+    Ok((rest, Token::Bool(*word.fragment() == "true")))
 }
 
 fn lex_string_literal(i: Span) -> IResult<Span, Token> {
@@ -349,6 +356,16 @@ mod tests {
             )
         )
     }
+
+    #[test]
+    fn test_lex_bool() {
+        let t = Span::new("true");
+        assert_eq!(unspan(lex_bool(t)), ("", Token::Bool(true)));
+
+        let f = Span::new("false");
+        assert_eq!(unspan(lex_bool(f)), ("", Token::Bool(false)));
+    }
+
     fn unspan<O>(span: IResult<Span, O>) -> (&str, O) {
         let (rest, out) = span.unwrap();
         (rest.fragment(), out)

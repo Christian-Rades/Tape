@@ -9,6 +9,7 @@ pub enum TaggedValue {
     Usize(u64),
     Number(i64),
     Float(f64),
+    Bool(bool),
 }
 
 impl Display for TaggedValue {
@@ -17,6 +18,7 @@ impl Display for TaggedValue {
             Self::Str(s) => write!(f, "{}", &s),
             Self::Usize(us) => write!(f, "{}", us),
             Self::Number(n) => write!(f, "{}", n),
+            Self::Bool(b) => write!(f, "{}", b),
             Self::Float(fl) => {
                 if let Some(dec) = Decimal::from_f64(*fl) {
                     write!(f, "{}", dec.round_dp(6).normalize())
@@ -39,6 +41,7 @@ impl Clone for TaggedValue {
             Self::Usize(u) => Self::Usize(*u),
             Self::Number(n) => Self::Number(*n),
             Self::Float(f) => Self::Float(*f),
+            Self::Bool(b) => Self::Bool(*b),
             Self::Zval(zv) => Self::Zval(zv.shallow_clone()),
         }
     }
@@ -65,6 +68,12 @@ impl From<String> for TaggedValue {
 impl From<u64> for TaggedValue {
     fn from(u: u64) -> Self {
         TaggedValue::Usize(u)
+    }
+}
+
+impl From<bool> for TaggedValue {
+    fn from(b: bool) -> Self {
+        TaggedValue::Bool(b)
     }
 }
 
