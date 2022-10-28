@@ -15,4 +15,10 @@ class ExpressionsTest extends TestCase
         $result = render(__DIR__ . '/fixtures/', 'arithmetic.twig', []);
         $this->assertSnapshot('arithmetic', $result);
     }
+
+    public function testLogic()
+    {
+        $result = render(__DIR__ . '/fixtures/', 'logic.twig', []);
+        $this->assertSnapshot('logic', $result);
+    }
 }

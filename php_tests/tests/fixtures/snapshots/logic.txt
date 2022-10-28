@@ -1,0 +1,16 @@
+Bool Display:
+
+1
+Not table:
+1
+
+And table:
+
+
+
+1
+Or table:
+
+1
+1
+1

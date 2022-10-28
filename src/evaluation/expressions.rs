@@ -40,6 +40,9 @@ impl Apply for Operator {
             Self::Mul => mul(&params),
             Self::Div => div(&params),
             Self::Divi => divi(&params),
+            Self::And => and(&params),
+            Self::Or => or(&params),
+            Self::Not => not(&params),
             _ => Err(anyhow!("missing apply for operator: {:?}", self)),
         }
     }
@@ -92,6 +95,27 @@ fn div(params: &[TaggedValue]) -> Result<TaggedValue> {
 fn divi(params: &[TaggedValue]) -> Result<TaggedValue> {
     match params {
         [TaggedValue::Number(lhs), TaggedValue::Number(rhs)] => Ok(TaggedValue::Number(lhs / rhs)),
+        _ => Err(anyhow!("add not implemented for {:?}", params)),
+    }
+}
+
+fn and(params: &[TaggedValue]) -> Result<TaggedValue> {
+    match params {
+        [TaggedValue::Bool(lhs), TaggedValue::Bool(rhs)] => Ok(TaggedValue::Bool(*lhs && *rhs)),
+        _ => Err(anyhow!("add not implemented for {:?}", params)),
+    }
+}
+
+fn or(params: &[TaggedValue]) -> Result<TaggedValue> {
+    match params {
+        [TaggedValue::Bool(lhs), TaggedValue::Bool(rhs)] => Ok(TaggedValue::Bool(*lhs || *rhs)),
+        _ => Err(anyhow!("add not implemented for {:?}", params)),
+    }
+}
+
+fn not(params: &[TaggedValue]) -> Result<TaggedValue> {
+    match params {
+        [TaggedValue::Bool(b)] => Ok(TaggedValue::Bool(*b == false)),
         _ => Err(anyhow!("add not implemented for {:?}", params)),
     }
 }
