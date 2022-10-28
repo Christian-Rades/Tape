@@ -6,6 +6,7 @@ vscode:
   extensions:
     - ms-vscode.makefile-tools
     - matklad.rust-analyzer
+    - mblode.twig-language
 
 github:
   prebuilds:
