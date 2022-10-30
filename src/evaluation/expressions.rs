@@ -6,6 +6,7 @@ use super::{
 };
 
 use anyhow::{anyhow, Result};
+use std::fmt::Write;
 
 pub trait Evaluate {
     fn eval(&self, env: &Env) -> Result<TaggedValue>;
@@ -43,6 +44,7 @@ impl Apply for Operator {
             Self::And => and(&params),
             Self::Or => or(&params),
             Self::Not => not(&params),
+            Self::StrConcat => str_concat(&params),
             _ => Err(anyhow!("missing apply for operator: {:?}", self)),
         }
     }
@@ -118,4 +120,17 @@ fn not(params: &[TaggedValue]) -> Result<TaggedValue> {
         [TaggedValue::Bool(b)] => Ok(TaggedValue::Bool(*b == false)),
         _ => Err(anyhow!("add not implemented for {:?}", params)),
     }
+}
+
+fn str_concat(params: &[TaggedValue]) -> Result<TaggedValue> {
+    let mut buf = String::default();
+    match params {
+        [lhs, rhs] => {
+            write!(buf, "{}", lhs);
+            write!(buf, "{}", rhs);
+            Ok(())
+        },
+        _ => Err(anyhow!("add not implemented for {:?}", params)),
+    }?;
+    Ok(TaggedValue::Str(buf))
 }

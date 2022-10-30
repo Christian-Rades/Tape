@@ -21,4 +21,10 @@ class ExpressionsTest extends TestCase
         $result = render(__DIR__ . '/fixtures/', 'logic.twig', []);
         $this->assertSnapshot('logic', $result);
     }
+
+    public function testStringConcat()
+    {
+        $result = render(__DIR__ . '/fixtures/', 'strConcat.twig', []);
+        $this->assertSnapshot('strConcat', $result);
+    }
 }
