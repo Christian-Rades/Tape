@@ -10,6 +10,7 @@ pub enum Expression {
     Bool(bool),
     Null,
     Array(Vec<Expression>),
+    FuncCall(FuncCall),
     HashMap(Vec<KeyValuePair>),
     Parent,
 }
@@ -17,6 +18,12 @@ pub enum Expression {
 #[derive(Debug, PartialEq, Clone)]
 pub struct Term {
     pub op: Operator,
+    pub params: Vec<Expression>,
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub struct FuncCall {
+    pub name: String,
     pub params: Vec<Expression>,
 }
 

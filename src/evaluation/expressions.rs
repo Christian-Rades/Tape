@@ -129,7 +129,7 @@ fn str_concat(params: &[TaggedValue]) -> Result<TaggedValue> {
             write!(buf, "{}", lhs);
             write!(buf, "{}", rhs);
             Ok(())
-        },
+        }
         _ => Err(anyhow!("add not implemented for {:?}", params)),
     }?;
     Ok(TaggedValue::Str(buf))

@@ -19,7 +19,7 @@ impl Display for TaggedValue {
             Self::Usize(us) => write!(f, "{}", us),
             Self::Number(n) => write!(f, "{}", n),
             Self::Bool(true) => write!(f, "{}", 1),
-            Self::Bool(false )=> write!(f, ""),
+            Self::Bool(false) => write!(f, ""),
             Self::Float(fl) => {
                 if let Some(dec) = Decimal::from_f64(*fl) {
                     write!(f, "{}", dec.round_dp(6).normalize())

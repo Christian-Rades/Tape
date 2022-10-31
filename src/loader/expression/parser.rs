@@ -4,7 +4,7 @@ use nom::{combinator::map_res, IResult};
 
 use anyhow::{anyhow, Result};
 
-use crate::loader::Span;
+use crate::loader::{expression::ast::FuncCall, Span};
 
 use super::{
     ast::{Expression, Term},
@@ -71,6 +71,14 @@ fn parse_rec(tokens: &mut VecDeque<Token>, min_bp: u8) -> Result<Expression> {
         Token::Str(s) => Expression::Str(s),
         Token::Var(v) => Expression::Var(v),
         Token::Bool(b) => Expression::Bool(b),
+        Token::FuncCall(fc) => Expression::FuncCall(FuncCall {
+            name: fc.name,
+            params: fc
+                .params
+                .into_iter()
+                .map(parse_to_expression)
+                .collect::<Result<Vec<Expression>>>()?,
+        }),
         Token::Op(op) => {
             if let Some(bp) = op.bp_prefix() {
                 Expression::Term(Term {
@@ -160,6 +168,8 @@ impl BindingPower for Operator {
 
 #[cfg(test)]
 mod tests {
+    use crate::loader::expression::{ast::FuncCall, lexer};
+
     use super::*;
     use pretty_assertions::assert_eq;
 
@@ -211,6 +221,29 @@ mod tests {
                         params: vec![Expression::Number(2), Expression::Number(3)]
                     })
                 ]
+            })
+        )
+    }
+
+    #[test]
+    fn test_function_call() {
+        let tokens = vec![Token::FuncCall(lexer::FuncCall {
+            name: "foo".to_string(),
+            params: vec![vec![
+                Token::Number(1),
+                Token::Op(Operator::Add),
+                Token::Number(2),
+            ]],
+        })];
+
+        assert_eq!(
+            parse_to_expression(tokens).unwrap(),
+            Expression::FuncCall(FuncCall {
+                name: "foo".to_string(),
+                params: vec![Expression::Term(Term {
+                    op: Operator::Add,
+                    params: vec![Expression::Number(1), Expression::Number(2)]
+                })]
             })
         )
     }

@@ -25,6 +25,7 @@ pub enum Token {
     Array(Vec<Token>),
     HashMap(Vec<KVTokensPair>),
     Parens(Vec<Token>),
+    FuncCall(FuncCall),
     Op(Operator),
     Parent(), //TODO remove
 }
@@ -33,6 +34,12 @@ pub enum Token {
 pub struct KVTokensPair {
     pub key: Vec<Token>,
     pub value: Vec<Token>,
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub struct FuncCall {
+    pub name: String,
+    pub params: Vec<Vec<Token>>,
 }
 
 pub fn lex_exprs(i: Span) -> IResult<Span, Vec<Token>> {
@@ -55,6 +62,7 @@ fn lex_expr(i: Span) -> IResult<Span, Token> {
         lex_number,
         lex_float,
         lex_string_literal,
+        lex_func_call,
         lex_var,
     ))(i)
 }
@@ -182,6 +190,39 @@ fn lex_key_value_pair(i: Span) -> IResult<Span, KVTokensPair> {
         _ => todo!(),
     };
     Ok((rest, KVTokensPair { key, value }))
+}
+
+fn lex_func_call(i: Span) -> IResult<Span, Token> {
+    let is_identifier = |c| -> bool {
+        ('a'..='z').contains(&c)
+            || ('A'..='Z').contains(&c)
+            || c == '_'
+            || (0x7f as char <= c && c <= 0xff as char)
+    };
+
+    let (rest, (_, name, param_strs)) = tuple((
+        multispace0,
+        take_while1(is_identifier),
+        delimited(
+            tag("("),
+            separated_list0(tag(","), take_while1(|c| c != ',' && c != ')')),
+            tag(")"),
+        ),
+    ))(i)?;
+    let mut params = Vec::with_capacity(param_strs.len());
+
+    for expr in param_strs.into_iter() {
+        let (_, tokens) = lex_exprs(expr)?;
+        params.push(tokens);
+    }
+
+    Ok((
+        rest,
+        Token::FuncCall(FuncCall {
+            name: name.to_string(),
+            params,
+        }),
+    ))
 }
 
 fn lex_operator(i: Span) -> IResult<Span, Token> {
@@ -326,6 +367,22 @@ mod tests {
                         value: vec![Token::Number(1)]
                     }
                 ])
+            )
+        )
+    }
+
+    #[test]
+    fn test_lex_func_call() {
+        let expr = Span::new(r#"foo(1, "two" )"#);
+
+        assert_eq!(
+            unspan(lex_exprs(expr)),
+            (
+                "",
+                vec![Token::FuncCall(FuncCall {
+                    name: "foo".to_string(),
+                    params: vec![vec![Token::Number(1)], vec![Token::Str("two".to_string())]]
+                })]
             )
         )
     }
