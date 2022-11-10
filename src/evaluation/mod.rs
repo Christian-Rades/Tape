@@ -1,6 +1,7 @@
 pub mod environment;
 mod expressions;
 mod value;
+pub mod config;
 use std::{collections::HashMap, fmt::Write};
 
 use ext_php_rs::convert::FromZval;

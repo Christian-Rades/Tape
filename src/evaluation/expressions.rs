@@ -6,6 +6,7 @@ use super::{
 };
 
 use anyhow::{anyhow, Result};
+use ext_php_rs::call_user_func;
 use std::fmt::Write;
 
 pub trait Evaluate {
@@ -28,6 +29,12 @@ impl Evaluate for Expression {
                 let params: Result<Vec<TaggedValue>> =
                     term.params.iter().map(|p| p.eval(env)).collect();
                 term.op.apply(params?)
+            }
+            Expression::FuncCall(fc) => {
+                let f = env.get_twig_function(&fc.name)?;
+
+                let params: Vec<TaggedValue> = fc.params.iter().map(|p| p.eval(env)).collect::<Result<Vec<TaggedValue>>>()?;
+                call_user_func!(f, params).map(|zv| TaggedValue::Zval(zv)).map_err(|err| anyhow!("foo: {}", err))
             }
             _ => todo!("implement me: {:?}", self),
         }

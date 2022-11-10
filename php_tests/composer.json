@@ -2,7 +2,8 @@
     "name": "tape/php_tests",
     "type": "project",
     "require": {
-        "phpunit/phpunit": "^9.5"
+        "phpunit/phpunit": "^9.5",
+        "twig/twig": "^3.4"
     },
     "autoload": {
         "psr-4": {

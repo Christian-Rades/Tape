@@ -6,23 +6,29 @@ use crate::loader::{ast::Setter, Loader, Module};
 
 use anyhow::{anyhow, Result};
 
-use super::{expressions::Evaluate, value::TaggedValue};
+use super::{expressions::Evaluate, value::TaggedValue, config::Config};
 
 pub struct Env {
     globals: Zval,
     stack: Vec<Scope>,
     loader: Loader,
+    config: Config,
 }
 
 type Scope = HashMap<String, TaggedValue>;
 
 impl Env {
-    pub fn new(globals: Zval, loader: Loader) -> Self {
+    pub fn new(globals: Zval, loader: Loader, config: Config) -> Self {
         Self {
             globals,
             stack: vec![Scope::default()],
             loader,
+            config,
         }
+    }
+
+    pub fn get_twig_function(& self, name: &str) -> Result<Zval> {
+        self.config.get_function(name)
     }
 
     pub fn load_file<T: AsRef<str>>(&mut self, file: T) -> Result<Module> {
