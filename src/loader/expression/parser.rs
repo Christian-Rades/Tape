@@ -71,6 +71,7 @@ fn parse_rec(tokens: &mut VecDeque<Token>, min_bp: u8) -> Result<Expression> {
         Token::Str(s) => Expression::Str(s),
         Token::Var(v) => Expression::Var(v),
         Token::Bool(b) => Expression::Bool(b),
+
         Token::FuncCall(fc) => Expression::FuncCall(FuncCall {
             name: fc.name,
             params: fc
@@ -79,6 +80,7 @@ fn parse_rec(tokens: &mut VecDeque<Token>, min_bp: u8) -> Result<Expression> {
                 .map(parse_to_expression)
                 .collect::<Result<Vec<Expression>>>()?,
         }),
+
         Token::Op(op) => {
             if let Some(bp) = op.bp_prefix() {
                 Expression::Term(Term {
@@ -89,6 +91,7 @@ fn parse_rec(tokens: &mut VecDeque<Token>, min_bp: u8) -> Result<Expression> {
                 return Err(anyhow!("not a prefix op: {:?}", op));
             }
         }
+
         _ => todo!("lhs not an atom"),
     };
     loop {

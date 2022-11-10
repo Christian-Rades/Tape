@@ -41,4 +41,10 @@ class ExpressionsTest extends TestCase
         $result = render(__DIR__ . '/fixtures/', 'func.twig', [], $this->twig);
         $this->assertSnapshot('func', $result);
     }
+
+    public function testFilter()
+    {
+        $result = render(__DIR__ . '/fixtures/', 'filter.twig', [], $this->twig);
+        $this->assertSnapshot('filter', $result);
+    }
 }
