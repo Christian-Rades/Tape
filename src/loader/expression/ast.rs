@@ -11,6 +11,7 @@ pub enum Expression {
     Null,
     Array(Vec<Expression>),
     FuncCall(FuncCall),
+    FilterCall(FuncCall),
     HashMap(Vec<KeyValuePair>),
     Parent,
 }

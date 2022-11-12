@@ -1,6 +1,10 @@
 use std::fmt::Display;
 
-use ext_php_rs::{convert::{FromZval, IntoZval}, flags::DataType, types::Zval};
+use ext_php_rs::{
+    convert::{FromZval, IntoZval},
+    flags::DataType,
+    types::Zval,
+};
 use rust_decimal::{prelude::FromPrimitive, Decimal};
 #[derive(Debug)]
 pub enum TaggedValue {
@@ -27,14 +31,12 @@ impl Display for TaggedValue {
                     write!(f, "{}", fl)
                 }
             }
-            Self::Zval(zv) => {
-                match zv {
-                    val if val.is_long() => write!(f, "{}", val.long().unwrap()),
-                    val if val.is_double() => write!(f, "{}", val.double().unwrap()),
-                    val if val.is_string() => write!(f, "{}", val.str().unwrap()),
-                    _ => write!(f, "{}", zv.str().unwrap_or("")),
-                }
-            }
+            Self::Zval(zv) => match zv {
+                val if val.is_long() => write!(f, "{}", val.long().unwrap()),
+                val if val.is_double() => write!(f, "{}", val.double().unwrap()),
+                val if val.is_string() => write!(f, "{}", val.str().unwrap()),
+                _ => write!(f, "{}", zv.str().unwrap_or("")),
+            },
         }
     }
 }
@@ -94,7 +96,7 @@ impl IntoZval for TaggedValue {
 
     fn set_zval(self, zv: &mut Zval, persistent: bool) -> ext_php_rs::error::Result<()> {
         match self {
-            Self::Str(str) => zv.set_string(&str, persistent)?,
+            Self::Str(s) => zv.set_string(&s, persistent)?,
             Self::Number(num) => zv.set_long(num),
             Self::Usize(num) => todo!("usize as long not yet possible"),
             Self::Bool(b) => zv.set_bool(b),
