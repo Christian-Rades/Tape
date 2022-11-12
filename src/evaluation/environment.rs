@@ -17,6 +17,8 @@ pub struct Env {
 
 type Scope = HashMap<String, TaggedValue>;
 
+pub type Filter = Box<dyn Fn(&Vec<TaggedValue>) -> Result<TaggedValue>>;
+
 impl Env {
     pub fn new(globals: Zval, loader: Loader, config: Config) -> Self {
         Self {
@@ -31,7 +33,7 @@ impl Env {
         self.config.get_function(name)
     }
 
-    pub fn get_twig_filter(&self, name: &str) -> Result<Zval> {
+    pub fn get_twig_filter(&self, name: &str) -> Result<Filter> {
         self.config.get_filter(name)
     }
 

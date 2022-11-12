@@ -44,7 +44,7 @@ class ExpressionsTest extends TestCase
 
     public function testFilter()
     {
-        $result = render(__DIR__ . '/fixtures/', 'filter.twig', [], $this->twig);
+        $result = render(__DIR__ . '/fixtures/', 'filter.twig', ['d' => new \DateTimeImmutable('2000-01-01')], $this->twig);
         $this->assertSnapshot('filter', $result);
     }
 }

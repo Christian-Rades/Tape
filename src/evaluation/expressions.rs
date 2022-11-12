@@ -50,16 +50,15 @@ impl Evaluate for Expression {
             }
 
             Expression::FilterCall(fc) => {
-                let f = env.get_twig_filter(&fc.name)?;
+                let filter = env.get_twig_filter(&fc.name)?;
 
                 let params: Vec<TaggedValue> = fc
                     .params
                     .iter()
                     .map(|p| p.eval(env))
                     .collect::<Result<Vec<TaggedValue>>>()?;
-                f.try_call(params.iter().map(|p| p as &dyn IntoZvalDyn).collect())
-                    .map(|zv| TaggedValue::Zval(zv))
-                    .map_err(|err| anyhow!("{}", err))
+
+                filter(&params)
             }
 
             _ => todo!("implement me: {:?}", self),
