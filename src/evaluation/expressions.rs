@@ -6,7 +6,11 @@ use super::{
 };
 
 use anyhow::{anyhow, Result};
-use ext_php_rs::call_user_func;
+use ext_php_rs::{
+    call_user_func,
+    convert::{IntoZval, IntoZvalDyn},
+    types::Zval,
+};
 use std::fmt::Write;
 
 pub trait Evaluate {
@@ -25,17 +29,39 @@ impl Evaluate for Expression {
             Expression::Number(n) => Ok(TaggedValue::Number(*n)),
             Expression::Float(f) => Ok(TaggedValue::Float(*f)),
             Expression::Bool(b) => Ok(TaggedValue::Bool(*b)),
+
             Expression::Term(term) => {
                 let params: Result<Vec<TaggedValue>> =
                     term.params.iter().map(|p| p.eval(env)).collect();
                 term.op.apply(params?)
             }
+
             Expression::FuncCall(fc) => {
                 let f = env.get_twig_function(&fc.name)?;
 
-                let params: Vec<TaggedValue> = fc.params.iter().map(|p| p.eval(env)).collect::<Result<Vec<TaggedValue>>>()?;
-                call_user_func!(f, params).map(|zv| TaggedValue::Zval(zv)).map_err(|err| anyhow!("foo: {}", err))
+                let params: Vec<TaggedValue> = fc
+                    .params
+                    .iter()
+                    .map(|p| p.eval(env))
+                    .collect::<Result<Vec<TaggedValue>>>()?;
+                f.try_call(params.iter().map(|p| p as &dyn IntoZvalDyn).collect())
+                    .map(|zv| TaggedValue::Zval(zv))
+                    .map_err(|err| anyhow!("{}", err))
             }
+
+            Expression::FilterCall(fc) => {
+                let f = env.get_twig_filter(&fc.name)?;
+
+                let params: Vec<TaggedValue> = fc
+                    .params
+                    .iter()
+                    .map(|p| p.eval(env))
+                    .collect::<Result<Vec<TaggedValue>>>()?;
+                f.try_call(params.iter().map(|p| p as &dyn IntoZvalDyn).collect())
+                    .map(|zv| TaggedValue::Zval(zv))
+                    .map_err(|err| anyhow!("{}", err))
+            }
+
             _ => todo!("implement me: {:?}", self),
         }
     }

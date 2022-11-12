@@ -6,7 +6,7 @@ use crate::loader::{ast::Setter, Loader, Module};
 
 use anyhow::{anyhow, Result};
 
-use super::{expressions::Evaluate, value::TaggedValue, config::Config};
+use super::{config::Config, expressions::Evaluate, value::TaggedValue};
 
 pub struct Env {
     globals: Zval,
@@ -27,8 +27,12 @@ impl Env {
         }
     }
 
-    pub fn get_twig_function(& self, name: &str) -> Result<Zval> {
+    pub fn get_twig_function(&self, name: &str) -> Result<Zval> {
         self.config.get_function(name)
+    }
+
+    pub fn get_twig_filter(&self, name: &str) -> Result<Zval> {
+        self.config.get_filter(name)
     }
 
     pub fn load_file<T: AsRef<str>>(&mut self, file: T) -> Result<Module> {

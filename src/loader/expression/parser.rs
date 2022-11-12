@@ -108,6 +108,33 @@ fn parse_rec(tokens: &mut VecDeque<Token>, min_bp: u8) -> Result<Expression> {
             break;
         }
 
+        if op == Operator::Filter {
+            let Some(filter) = tokens.pop_front() else {
+                return Err(anyhow!("unexpected end of expression"));
+            };
+
+            lhs = match filter {
+                Token::Var(name) => Expression::FilterCall(FuncCall {
+                    name,
+                    params: vec![lhs],
+                }),
+                Token::FuncCall(fc) => {
+                    let super::lexer::FuncCall { name, params } = fc;
+                    let mut params: Vec<Expression> = params
+                        .into_iter()
+                        .map(parse_to_expression)
+                        .collect::<Result<Vec<Expression>>>()?;
+
+                    params.insert(0, lhs);
+
+                    Expression::FilterCall(FuncCall { name, params })
+                }
+                _ => return Err(anyhow!("illegal filter name: {:?}", filter)),
+            };
+
+            break;
+        }
+
         let rhs = parse_rec(tokens, r_bp)?;
         lhs = Expression::Term(Term {
             op,

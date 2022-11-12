@@ -1,4 +1,4 @@
-use ext_php_rs::{types::Zval, call_user_func};
+use ext_php_rs::{call_user_func, types::Zval};
 
 use anyhow::{anyhow, Result};
 
@@ -12,7 +12,8 @@ impl Config {
     }
 
     pub fn get_function(&self, name: &str) -> Result<Zval> {
-        let funtions = call_user_func!(build_callable(&self.twig_env, "getFunctions")).map_err(|e| anyhow::anyhow!("{}", e))?;
+        let funtions = call_user_func!(build_callable(&self.twig_env, "getFunctions"))
+            .map_err(|e| anyhow::anyhow!("{}", e))?;
         let func = if let Some(Some(f)) = funtions.array().map(|a| a.get(name)) {
             f
         } else {
@@ -22,10 +23,24 @@ impl Config {
         call_user_func!(build_callable(func, "getCallable")).map_err(|e| anyhow::anyhow!("{}", e))
     }
 
+    pub fn get_filter(&self, name: &str) -> Result<Zval> {
+        let funtions = call_user_func!(build_callable(&self.twig_env, "getFilters"))
+            .map_err(|e| anyhow::anyhow!("{}", e))?;
+        let func = if let Some(Some(f)) = funtions.array().map(|a| a.get(name)) {
+            f
+        } else {
+            return Err(anyhow!("function {} not found", name));
+        };
+
+        call_user_func!(build_callable(func, "getCallable")).map_err(|e| anyhow::anyhow!("{}", e))
+    }
 }
 
 fn build_callable(zv: &Zval, fn_name: &str) -> Zval {
     let mut callable = Zval::new();
-    callable.set_array(vec![zv.shallow_clone(), Zval::try_from(fn_name).expect("could not create php string")]);
-    return callable
+    callable.set_array(vec![
+        zv.shallow_clone(),
+        Zval::try_from(fn_name).expect("could not create php string"),
+    ]);
+    return callable;
 }

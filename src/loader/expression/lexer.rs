@@ -293,6 +293,7 @@ fn lex_single_operator(i: Span) -> IResult<Span, Operator> {
         '/' => Ok((rest, Operator::Div)),
         '~' => Ok((rest, Operator::StrConcat)),
         '%' => Ok((rest, Operator::Modulo)),
+        '|' => Ok((rest, Operator::Filter)),
         _ => unreachable!(),
     }
 }
