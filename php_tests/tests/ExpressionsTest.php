@@ -47,4 +47,10 @@ class ExpressionsTest extends TestCase
         $result = render(__DIR__ . '/fixtures/', 'filter.twig', ['d' => new \DateTimeImmutable('2000-01-01')], $this->twig);
         $this->assertSnapshot('filter', $result);
     }
+
+    public function testArrayLiteral()
+    {
+        $result = render(__DIR__ . '/fixtures/', 'array.twig', [], $this->twig);
+        $this->assertSnapshot('array', $result);
+    }
 }
