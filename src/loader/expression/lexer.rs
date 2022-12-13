@@ -2,7 +2,7 @@ use nom::{
     branch::alt,
     bytes::complete::{tag, take_while, take_while1},
     character::complete::{digit1, multispace0, multispace1, one_of},
-    combinator::{eof, map_res, not, opt},
+    combinator::{eof, map_res, not, opt, peek},
     error::{make_error, ErrorKind, ParseError},
     multi::{many_till, separated_list0, separated_list1},
     number::complete::float,
@@ -22,7 +22,7 @@ pub enum Token {
     Float(f64),
     Bool(bool),
     Null,
-    Array(Vec<Token>),
+    Array(Vec<Vec<Token>>),
     HashMap(Vec<KVTokensPair>),
     Parens(Vec<Token>),
     FuncCall(FuncCall),
@@ -156,12 +156,13 @@ fn lex_parens(i: Span) -> IResult<Span, Token> {
 }
 
 fn lex_array(i: Span) -> IResult<Span, Token> {
-    let (rest, elems) = delimited(
+    let (rest, content) = delimited(
         tuple((tag("["), multispace0)),
-        separated_list0(tuple((multispace0, tag(","), multispace0)), lex_expr),
-        tuple((multispace0, tag("]"))),
+        separated_list0(tuple((tag(","), multispace0)), many_till(lex_exprs_elem, peek(alt((tag(","), tag("]")))))),
+        tag("]")
     )(i)?;
-    Ok((rest, Token::Array(elems)))
+    let expr_list = content.into_iter().map(|(expr, ..)| expr).collect();
+    Ok((rest, Token::Array(expr_list)))
 }
 
 fn lex_hash_map(i: Span) -> IResult<Span, Token> {
@@ -339,9 +340,9 @@ mod tests {
             (
                 "",
                 Token::Array(vec![
-                    Token::Var("var".to_string()),
-                    Token::Str(",str".to_string()),
-                    Token::Number(1)
+                    vec![Token::Var("var".to_string())],
+                    vec![Token::Str(",str".to_string())],
+                    vec![Token::Number(1)]
                 ])
             )
         )
@@ -407,8 +408,8 @@ mod tests {
                     Token::Str("foo".to_string()),
                     Token::Op(Operator::In),
                     Token::Array(vec![
-                        Token::Str("foo".to_string()),
-                        Token::Str("bar".to_string()),
+                        vec![Token::Str("foo".to_string())],
+                        vec![Token::Str("bar".to_string())],
                     ])
                 ]
             )

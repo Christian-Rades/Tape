@@ -9,7 +9,7 @@ use anyhow::{anyhow, Result};
 use ext_php_rs::{
     call_user_func,
     convert::{IntoZval, IntoZvalDyn},
-    types::Zval,
+    types::{ZendHashTable, Zval}
 };
 use std::fmt::Write;
 
@@ -34,6 +34,14 @@ impl Evaluate for Expression {
                 let params: Result<Vec<TaggedValue>> =
                     term.params.iter().map(|p| p.eval(env)).collect();
                 term.op.apply(params?)
+            }
+
+            Expression::Array(exprs) => {
+                let mut arr = ZendHashTable::new();
+                for expr in exprs {
+                    arr.push(expr.eval(env)?).map_err(|err| anyhow!("{:?}", err))?;
+                }
+                Ok(TaggedValue::Zval(arr.as_zval(false).map_err(|err| anyhow!("{:?}", err))?))
             }
 
             Expression::FuncCall(fc) => {

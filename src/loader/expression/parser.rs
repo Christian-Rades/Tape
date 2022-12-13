@@ -72,6 +72,11 @@ fn parse_rec(tokens: &mut VecDeque<Token>, min_bp: u8) -> Result<Expression> {
         Token::Var(v) => Expression::Var(v),
         Token::Bool(b) => Expression::Bool(b),
 
+        Token::Array(toks) => Expression::Array(toks
+                              .into_iter()
+                              .map(parse_to_expression)
+                              .collect::<Result<Vec<Expression>>>()?),
+
         Token::FuncCall(fc) => Expression::FuncCall(FuncCall {
             name: fc.name,
             params: fc
