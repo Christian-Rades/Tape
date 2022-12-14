@@ -333,19 +333,37 @@ mod tests {
 
     #[test]
     fn test_lex_array() {
-        let arr = Span::new("[ var, ',str',1]");
+        let expectation = Token::Array(
+            vec![
+                vec![Token::Var("var".to_string())],
+                vec![Token::Str(",str".to_string())],
+                vec![Token::Number(1)]
+            ]);
 
+        let tests = vec![
+            Span::new("[ var, ',str',1]"),
+            Span::new("[var, ',str',1]"),
+            Span::new("[var,',str',1 ]"),
+            Span::new("[var,',str',1]"),
+        ];
+
+        for test in tests {
+            assert_eq!(
+                unspan(lex_array(test)),
+                (
+                    "",
+                    expectation.clone()
+                ));
+        }
+
+        let nested = Span::new("[[[1]]]");
         assert_eq!(
-            unspan(lex_array(arr)),
-            (
-                "",
-                Token::Array(vec![
-                    vec![Token::Var("var".to_string())],
-                    vec![Token::Str(",str".to_string())],
-                    vec![Token::Number(1)]
-                ])
+                unspan(lex_array(nested)),
+                (
+                    "",
+                    Token::Array(vec![vec![Token::Array(vec![vec![Token::Array(vec![vec![Token::Number(1)]])]])]])
+                )
             )
-        )
     }
 
     #[test]
