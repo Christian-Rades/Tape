@@ -44,6 +44,14 @@ impl Evaluate for Expression {
                 Ok(TaggedValue::Zval(arr.as_zval(false).map_err(|err| anyhow!("{:?}", err))?))
             }
 
+            Expression::HashMap(elements) => {
+                let mut arr = ZendHashTable::new();
+                for kv_pair in elements {
+                    arr.insert(&kv_pair.key.eval(env)?.to_string(), kv_pair.val.eval(env)?).map_err(|err| anyhow!("{:?}", err))?;
+                }
+                Ok(TaggedValue::Zval(arr.as_zval(false).map_err(|err| anyhow!("{:?}", err))?))
+            },
+
             Expression::FuncCall(fc) => {
                 let f = env.get_twig_function(&fc.name)?;
 

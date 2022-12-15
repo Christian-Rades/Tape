@@ -7,7 +7,7 @@ use anyhow::{anyhow, Result};
 use crate::loader::{expression::ast::FuncCall, Span};
 
 use super::{
-    ast::{Expression, Term},
+    ast::{Expression, Term, KeyValuePair},
     lexer::{lex_exprs, Token},
 };
 
@@ -76,6 +76,13 @@ fn parse_rec(tokens: &mut VecDeque<Token>, min_bp: u8) -> Result<Expression> {
                               .into_iter()
                               .map(parse_to_expression)
                               .collect::<Result<Vec<Expression>>>()?),
+
+        Token::HashMap(kvs) => Expression::HashMap(kvs.into_iter().map(|kv_pair| -> Result<KeyValuePair> {
+            Ok(KeyValuePair{
+                key: parse_to_expression(kv_pair.key)?,
+                val: parse_to_expression(kv_pair.value)?
+            })
+        }).collect::<Result<Vec<KeyValuePair>>>()?),
 
         Token::FuncCall(fc) => Expression::FuncCall(FuncCall {
             name: fc.name,

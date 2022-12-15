@@ -53,4 +53,10 @@ class ExpressionsTest extends TestCase
         $result = render(__DIR__ . '/fixtures/', 'array.twig', [], $this->twig);
         $this->assertSnapshot('array', $result);
     }
+
+    public function testHashmapLiteral()
+    {
+        $result = render(__DIR__ . '/fixtures/', 'assocArray.twig', [], $this->twig);
+        $this->assertSnapshot('assocArray', $result);
+    }
 }
