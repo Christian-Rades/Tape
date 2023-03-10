@@ -59,4 +59,11 @@ class ExpressionsTest extends TestCase
         $result = render(__DIR__ . '/fixtures/', 'assocArray.twig', [], $this->twig);
         $this->assertSnapshot('assocArray', $result);
     }
+
+    public function testEquality()
+    {
+        $result = render(__DIR__ . '/fixtures/', 'equality.twig', [], $this->twig);
+        $this->assertSnapshot('equality', $result);
+    }
+
 }

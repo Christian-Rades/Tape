@@ -93,6 +93,7 @@ impl Apply for Operator {
             Self::Or => or(&params),
             Self::Not => not(&params),
             Self::StrConcat => str_concat(&params),
+            Self::Eq => is_identical(&params),
             _ => Err(anyhow!("missing apply for operator: {:?}", self)),
         }
     }
@@ -181,4 +182,28 @@ fn str_concat(params: &[TaggedValue]) -> Result<TaggedValue> {
         _ => Err(anyhow!("add not implemented for {:?}", params)),
     }?;
     Ok(TaggedValue::Str(buf))
+}
+
+fn is_identical(params: &[TaggedValue]) -> Result<TaggedValue> {
+    if params.len() != 2 {
+        return Err(anyhow!("can only compare 2 values not: {}", params.len()))
+    }
+
+    match params {
+        [TaggedValue::Zval(lhs), TaggedValue::Zval(rhs)] => Ok(TaggedValue::Bool(lhs.is_identical(rhs))),
+        [TaggedValue::Zval(lhs), rhs] =>  {
+            let rhs_z = rhs.clone().into_zval(false).map_err(|err| anyhow!("{:?}", err))?;
+            Ok(TaggedValue::Bool(lhs.is_identical(&rhs_z)))
+        },
+        [lhs, TaggedValue::Zval(rhs)] =>  {
+            let lhs_z = lhs.clone().into_zval(false).map_err(|err| anyhow!("{:?}", err))?;
+            Ok(TaggedValue::Bool(lhs_z.is_identical(rhs)))
+        },
+        [lhs, rhs] =>  {
+            let lhs_z = lhs.clone().into_zval(false).map_err(|err| anyhow!("{:?}", err))?;
+            let rhs_z = rhs.clone().into_zval(false).map_err(|err| anyhow!("{:?}", err))?;
+            Ok(TaggedValue::Bool(lhs_z.is_identical(&rhs_z)))
+        }
+        _ => Err(anyhow!("identity not implemented for {:?}", params)),
+    }
 }
