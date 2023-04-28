@@ -1,7 +1,7 @@
 use super::{
     ast::{
         get_blocks, Block, BlockType, Content, Extension, IterationType, Loop, Module, Setter,
-        Stmt, Template,
+        Stmt, Template, If,
     },
     expression,
 };
@@ -158,13 +158,22 @@ fn parse_block(i: Span) -> IResult<Span, Content> {
             )(rest)?;
             Ok((rest, Content::Block(Box::new(Block { typ, contents }))))
         }
+        BlockType::If(_) => {
+            let (rest, contents) = parse_if_content(rest)?;
+            Ok((rest, Content::Block(Box::new(Block { typ, contents }))))
+        }
     }
+}
+
+fn parse_if_content(i: Span) -> IResult<Span, Vec<Content>> {
+    let (rest, (contents, _)) = many_till(parse_content, tuple((tag("{% endif %}"), opt(line_ending))))(i)?;
+    Ok((rest, contents))
 }
 
 fn parse_block_type(i: Span) -> IResult<Span, BlockType> {
     delimited(
         parse_block_tag_l,
-        alt((parse_block_name, parse_loop)),
+        alt((parse_block_name, parse_loop, parse_if)),
         parse_block_tag_r,
     )(i)
 }
@@ -190,6 +199,13 @@ fn parse_loop(i: Span) -> IResult<Span, BlockType> {
             iterator: iterator.to_string(),
         }),
     ))
+}
+
+fn parse_if(i: Span) -> IResult<Span, BlockType> {
+    let (rest, (.., expr)) = tuple((tag("if"), multispace1, take_until("%}")))(i)?;
+    let (_, expr) = expression::parse(expr)?;
+    Add other conditions as list of ifs in the if block it self not in the block header
+    Ok((rest, BlockType::If(If{expression: expr, else_block: None})))
 }
 
 fn parse_single_var(i: Span) -> IResult<Span, IterationType> {

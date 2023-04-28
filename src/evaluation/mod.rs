@@ -121,6 +121,14 @@ impl Renderable for Block {
                 }
                 Ok(env)
             }
+            BlockType::If(i) => {
+                let cond = i.expression.eval(&env)?;
+                if cond.is_truthy() {
+                    self.contents.render(out, env).map(Env::exit_scope)
+                } else {
+                    Ok(env)
+                }
+            }
         }
     }
 }

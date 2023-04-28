@@ -16,6 +16,24 @@ pub enum TaggedValue {
     Bool(bool),
 }
 
+impl TaggedValue {
+    pub fn is_truthy(&self) -> bool {
+        match self {
+            Self::Str(s) => !s.is_empty(),
+            Self::Usize(u) => *u != 0,
+            Self::Number(n) => *n != 0,
+            Self::Float(f) => *f != 0.0,
+            Self::Bool(b) => *b,
+            Self::Zval(zv) => match zv {
+                val if val.is_long() => val.long().unwrap() != 0,
+                val if val.is_double() => val.double().unwrap() != 0.0,
+                val if val.is_string() => !val.str().unwrap().is_empty(),
+                _ => false,
+            },
+        }
+    }
+}
+
 impl Display for TaggedValue {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {

@@ -41,6 +41,7 @@ pub struct Block {
 pub enum BlockType {
     BlockName(String),
     Loop(Loop),
+    If(If)
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -53,6 +54,12 @@ pub struct Loop {
 pub enum IterationType {
     SingleVal(String),
     KeyVal((String, String)),
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub struct If {
+    pub expression: Expression,
+    pub else_block: Option<Content>
 }
 
 #[derive(Debug, PartialEq, Clone)]
